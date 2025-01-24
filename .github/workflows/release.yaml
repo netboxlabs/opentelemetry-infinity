@@ -15,7 +15,7 @@ jobs:
         run: |
           OTEL_LATEST_RELEASE=$(curl -L -s -H 'Accept: application/json' https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest)
           OTEL_LATEST_VERSION=$(echo $OTEL_LATEST_RELEASE | sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')
-          INF_LATEST_RELEASE=$(curl -L -s -H 'Accept: application/json' https://github.com/leoparente/opentelemetry-infinity/releases/latest)
+          INF_LATEST_RELEASE=$(curl -L -s -H 'Accept: application/json' https://github.com/netboxlabs/opentelemetry-infinity/releases/latest)
           INF_LATEST_VERSION=$(echo $INF_LATEST_RELEASE | sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')
           release=''
           if [[ $OTEL_LATEST_VERSION != $INF_LATEST_VERSION ]]; then
@@ -93,4 +93,4 @@ jobs:
 
       - name: Push opentelemetry-infinity container
         run: |
-          docker push -a ghcr.io/leoparente/opentelemetry-infinity
+          docker push -a netboxlabs/opentelemetry-infinity

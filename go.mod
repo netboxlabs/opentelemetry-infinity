@@ -1,4 +1,4 @@
-module github.com/leoparente/opentelemetry-infinity
+module github.com/netboxlabs/opentelemetry-infinity
 
 go 1.20
 

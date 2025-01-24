@@ -8,8 +8,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/leoparente/opentelemetry-infinity/config"
-	"github.com/leoparente/opentelemetry-infinity/otlpinf"
+	"github.com/netboxlabs/opentelemetry-infinity/config"
+	"github.com/netboxlabs/opentelemetry-infinity/otlpinf"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"

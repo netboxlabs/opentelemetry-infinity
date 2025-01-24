@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leoparente/opentelemetry-infinity/config"
-	"github.com/leoparente/opentelemetry-infinity/runner"
+	"github.com/netboxlabs/opentelemetry-infinity/config"
+	"github.com/netboxlabs/opentelemetry-infinity/runner"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )

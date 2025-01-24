@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leoparente/opentelemetry-infinity/config"
+	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v2"
 )

@@ -31,7 +31,7 @@ jobs:
       - name: get otelcol-contrib
         run: make getotelcol
 
-      - name: Build binnary (go build only)
+      - name: Build binary (go build only)
         run: make build
 
       - name: Install additional dependencies

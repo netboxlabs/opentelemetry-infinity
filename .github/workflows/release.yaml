@@ -4,6 +4,11 @@ on:
     branches: [ "main" ]
   schedule:
     - cron: '0 0 * * 1'
+
+permissions:
+  packages: write
+  contents: write
+
 jobs:
   check:
     outputs:
@@ -27,33 +32,30 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: check
-    permissions:
-      packages: write
-      contents: write
     if: needs.check.outputs.release != ''
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download Version
         env:
           RELEASE: ${{needs.check.outputs.release}}
         run: |
           echo "LAST_TAG=`git tag --sort=committerdate | tail -1`" >> $GITHUB_ENV
           echo "TAG=$RELEASE" >> $GITHUB_ENV
-          
-          ARTIFACT_VERSION=${RELEASE:1}
+
+          echo "ARTIFACT_VERSION=${RELEASE:1}" >> $GITHUB_ENV
           ARTIFACT="otelcol-contrib_${ARTIFACT_VERSION}_linux_amd64.tar.gz"
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
+          
           mkdir .temp/
           wget -O .temp/otelcol-contrib.tar.gz $ARTIFACT_URL
-          
           tar -xvzf .temp/otelcol-contrib.tar.gz -C .temp/
           mv .temp/otelcol-contrib runner/
           rm -rf .temp/
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: '1.23'
           
       - name: Build Binary
         run: make build
@@ -65,6 +67,17 @@ jobs:
         run: |
           zip -j otlpinf-amd64.zip build/otlpinf
           zip -j otelcol-contrib-amd64.zip runner/otelcol-contrib
+
+      - name: Download and zip arm64
+        run: |
+          ARTIFACT="otelcol-contrib_${{ env.ARTIFACT_VERSION }}_linux_arm64.tar.gz"
+          ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
+          mkdir .temp/
+          wget -O .temp/otelcol-contrib.tar.gz $ARTIFACT_URL
+          
+          tar -xvzf .temp/otelcol-contrib.tar.gz -C .temp/
+          zip -j otelcol-contrib-arm64.zip .temp/otelcol-contrib
+          rm -rf .temp/
 
       - name: Generate release changelog
         run: |
@@ -80,17 +93,29 @@ jobs:
           files: |
             otlpinf-amd64.zip
             otelcol-contrib-amd64.zip
+            otelcol-contrib-arm64.zip
       
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf #v3.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 #v3.8.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 #v3.3.0
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}   
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker release
-        run: make release
-
-      - name: Push opentelemetry-infinity container
-        run: |
-          docker push -a netboxlabs/opentelemetry-infinity
+      - name: Build image and push
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 #v6.10.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64, linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            netboxlabs/opentelemetry-infinity:latest
+            netboxlabs/opentelemetry-infinity:${{ env.TAG }}

@@ -24,7 +24,6 @@ var (
 )
 
 func Run(cmd *cobra.Command, args []string) {
-
 	initConfig()
 
 	// configuration
@@ -69,7 +68,7 @@ func Run(cmd *cobra.Command, args []string) {
 
 	go func() {
 		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		for {
 			select {
 			case <-sigs:
@@ -108,7 +107,6 @@ func initConfig() {
 }
 
 func main() {
-
 	rootCmd := &cobra.Command{
 		Use: "opentelemetry-infinity",
 	}
@@ -126,5 +124,7 @@ func main() {
 	runCmd.PersistentFlags().Uint64VarP(&ServerPort, "server_port", "p", 10222, "Define REST Port")
 
 	rootCmd.AddCommand(runCmd)
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

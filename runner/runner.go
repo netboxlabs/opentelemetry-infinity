@@ -3,13 +3,12 @@ package runner
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"errors"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-
-	_ "embed"
 	"time"
 
 	"github.com/amenzhinsky/go-memexec"
@@ -63,12 +62,16 @@ type Runner struct {
 	errChan       chan string
 }
 
-func GetCapabilities() ([]byte, error) {
+func GetCapabilities(logger *zap.Logger) ([]byte, error) {
 	exe, err := memexec.New(otel_contrib)
 	if err != nil {
 		return nil, err
 	}
-	defer exe.Close()
+	defer func() {
+		if err := exe.Close(); err != nil {
+			logger.Error("failed to exit", zap.Error(err))
+		}
+	}()
 	cmd := exe.Command("components")
 	ret, err := cmd.Output()
 	if err != nil {
@@ -78,8 +81,10 @@ func GetCapabilities() ([]byte, error) {
 }
 
 func New(logger *zap.Logger, policyName string, policyDir string, selfTelemetry bool) Runner {
-	return Runner{logger: logger, policyName: policyName, policyDir: policyDir,
-		selfTelemetry: selfTelemetry, sets: make([]string, 0), errChan: make(chan string)}
+	return Runner{
+		logger: logger, policyName: policyName, policyDir: policyDir,
+		selfTelemetry: selfTelemetry, sets: make([]string, 0), errChan: make(chan string),
+	}
 }
 
 func (r *Runner) Configure(c *config.Policy) error {
@@ -137,7 +142,11 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	if err != nil {
 		return err
 	}
-	defer exe.Close()
+	defer func() {
+		if err := exe.Close(); err != nil {
+			r.logger.Error("failed to exit", zap.Error(err))
+		}
+	}()
 
 	r.cmd = exe.CommandContext(ctx, r.options...)
 	if r.cmd.Err != nil {

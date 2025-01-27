@@ -4,10 +4,8 @@
 
 <br clear="left"/>
 
-[![Build status](https://github.com/netboxlabs/opentelemetry-infinity/workflows/otel-main/badge.svg)](https://github.com/netboxlabs/opentelemetry-infinity/actions)
+[![Build status](https://github.com/netboxlabs/opentelemetry-infinity/actions/workflows/build.yaml/badge.svg)](https://github.com/netboxlabs/opentelemetry-infinity/actions)
 [![CodeQL](https://github.com/netboxlabs/opentelemetry-infinity/workflows/CodeQL/badge.svg)](https://github.com/netboxlabs/opentelemetry-infinity/security/code-scanning)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=leoparente_opentelemetry-infinity&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=leoparente_opentelemetry-infinity)
-[![CodeCov](https://codecov.io/gh/netboxlabs/opentelemetry-infinity/branch/main/graph/badge.svg)](https://app.codecov.io/gh/netboxlabs/opentelemetry-infinity/tree/main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/netboxlabs/opentelemetry-infinity)](https://goreportcard.com/report/github.com/netboxlabs/opentelemetry-infinity)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/netboxlabs/opentelemetry-infinity)
 

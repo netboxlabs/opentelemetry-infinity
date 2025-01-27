@@ -1,6 +1,7 @@
-FROM golang:1.23-alpine AS builder
 ARG GOARCH
 ARG GOARM
+
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /go/src/github.com/netboxlabs/opentelemetry-infinity
 COPY . .

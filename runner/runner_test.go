@@ -10,15 +10,15 @@ import (
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"go.uber.org/zap/zaptest"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	ERROR_MSG   = "Expected no error, but got %v"
-	TEST_POLICY = "test-policy"
+	ErrorMessage = "Expected no error, but got %v"
+	TestPolicy   = "test-policy"
 )
 
-var POLICY_DIR = os.TempDir()
+var PolicyDir = os.TempDir()
 
 func TestRunnerNew(t *testing.T) {
 	// Arrange
@@ -26,19 +26,19 @@ func TestRunnerNew(t *testing.T) {
 	selfTelemetry := false
 
 	// Act
-	runner := New(logger, TEST_POLICY, POLICY_DIR, selfTelemetry)
+	runner := New(logger, TestPolicy, PolicyDir, selfTelemetry)
 
 	// Assert
 	if runner.logger != logger {
 		t.Errorf("Expected logger to be set to %v, got %v", logger, runner.logger)
 	}
 
-	if runner.policyName != TEST_POLICY {
-		t.Errorf("Expected policyName to be set to %s, got %s", TEST_POLICY, runner.policyName)
+	if runner.policyName != TestPolicy {
+		t.Errorf("Expected policyName to be set to %s, got %s", TestPolicy, runner.policyName)
 	}
 
-	if runner.policyDir != POLICY_DIR {
-		t.Errorf("Expected policyDir to be set to %s, got %s", POLICY_DIR, runner.policyDir)
+	if runner.policyDir != PolicyDir {
+		t.Errorf("Expected policyDir to be set to %s, got %s", PolicyDir, runner.policyDir)
 	}
 
 	if runner.selfTelemetry != selfTelemetry {
@@ -56,8 +56,8 @@ func TestRunnerConfigure(t *testing.T) {
 	enableTelemetry := false
 	runner := &Runner{
 		logger:        logger,
-		policyName:    TEST_POLICY,
-		policyDir:     POLICY_DIR,
+		policyName:    TestPolicy,
+		policyDir:     PolicyDir,
 		selfTelemetry: enableTelemetry,
 	}
 	config := &config.Policy{
@@ -72,10 +72,9 @@ func TestRunnerConfigure(t *testing.T) {
 
 	// Act
 	err := runner.Configure(config)
-
 	// Assert
 	if err != nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 
 	expectedFeatureGates := "gate1,gate2"
@@ -88,8 +87,8 @@ func TestRunnerConfigure(t *testing.T) {
 		t.Errorf("Expected set to be %v, but got %v", expectedSet, runner.sets)
 	}
 
-	if !strings.Contains(runner.policyFile, TEST_POLICY) {
-		t.Errorf("Expected policy File to contain %v, but got %v", TEST_POLICY, runner.policyFile)
+	if !strings.Contains(runner.policyFile, TestPolicy) {
+		t.Errorf("Expected policy File to contain %v, but got %v", TestPolicy, runner.policyFile)
 	}
 }
 
@@ -98,7 +97,7 @@ func TestRunnerConfigureError(t *testing.T) {
 	runner := &Runner{
 		logger:        logger,
 		policyName:    "invalid/pattern",
-		policyDir:     POLICY_DIR,
+		policyDir:     PolicyDir,
 		selfTelemetry: true,
 	}
 
@@ -119,13 +118,13 @@ func TestRunnerConfigureError(t *testing.T) {
 		err = runner.Configure(policy)
 	}()
 	if err == nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 	if !strings.Contains(err.Error(), "cannot marshal type: func()") {
 		t.Errorf("Expected a 'cannot marshal type: func()' error, but got: %s", err.Error())
 	}
 
-	//Error in create temp file
+	// Error in create temp file
 	policy = &config.Policy{
 		Config: map[string]interface{}{
 			"policy": "simple",
@@ -134,7 +133,7 @@ func TestRunnerConfigureError(t *testing.T) {
 
 	err = runner.Configure(policy)
 	if err == nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 	if !strings.Contains(err.Error(), "invalid/pattern") {
 		t.Errorf("Expected an 'invalid/pattern' error, but got: %s", err.Error())
@@ -146,8 +145,8 @@ func TestRunnerStartStop(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	runner := &Runner{
 		logger:        logger,
-		policyName:    TEST_POLICY,
-		policyDir:     POLICY_DIR,
+		policyName:    TestPolicy,
+		policyDir:     PolicyDir,
 		selfTelemetry: true,
 	}
 	config := &config.Policy{
@@ -161,16 +160,16 @@ func TestRunnerStartStop(t *testing.T) {
 		},
 	}
 
-	//Act
+	// Act
 	err := runner.Configure(config)
 	if err != nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = runner.Start(ctx, cancel)
 	if err != nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 
 	runner.Stop(ctx)
@@ -182,10 +181,12 @@ func TestRunnerStartStop(t *testing.T) {
 }
 
 func TestRunnerGetCapabilities(t *testing.T) {
-	//Act
-	caps, err := GetCapabilities()
+	logger := zaptest.NewLogger(t)
+
+	// Act
+	caps, err := GetCapabilities(logger)
 	if err != nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 
 	// Assert
@@ -196,6 +197,6 @@ func TestRunnerGetCapabilities(t *testing.T) {
 	}{}
 	err = yaml.Unmarshal(caps, &s)
 	if err != nil {
-		t.Errorf(ERROR_MSG, err)
+		t.Errorf(ErrorMessage, err)
 	}
 }

@@ -43,7 +43,7 @@ func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) erro
 	if err != nil {
 		return err
 	}
-	o.capabilities, err = runner.GetCapabilities()
+	o.capabilities, err = runner.GetCapabilities(o.logger)
 	if err != nil {
 		return err
 	}

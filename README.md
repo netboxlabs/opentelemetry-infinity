@@ -4,12 +4,12 @@
 
 <br clear="left"/>
 
-[![Build status](https://github.com/leoparente/opentelemetry-infinity/workflows/otel-main/badge.svg)](https://github.com/leoparente/opentelemetry-infinity/actions)
-[![CodeQL](https://github.com/leoparente/opentelemetry-infinity/workflows/CodeQL/badge.svg)](https://github.com/leoparente/opentelemetry-infinity/security/code-scanning)
+[![Build status](https://github.com/netboxlabs/opentelemetry-infinity/workflows/otel-main/badge.svg)](https://github.com/netboxlabs/opentelemetry-infinity/actions)
+[![CodeQL](https://github.com/netboxlabs/opentelemetry-infinity/workflows/CodeQL/badge.svg)](https://github.com/netboxlabs/opentelemetry-infinity/security/code-scanning)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=leoparente_opentelemetry-infinity&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=leoparente_opentelemetry-infinity)
-[![CodeCov](https://codecov.io/gh/leoparente/opentelemetry-infinity/branch/main/graph/badge.svg)](https://app.codecov.io/gh/leoparente/opentelemetry-infinity/tree/main)
-[![Go Report Card](https://goreportcard.com/badge/github.com/leoparente/opentelemetry-infinity)](https://goreportcard.com/report/github.com/leoparente/opentelemetry-infinity)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/leoparente/opentelemetry-infinity)
+[![CodeCov](https://codecov.io/gh/netboxlabs/opentelemetry-infinity/branch/main/graph/badge.svg)](https://app.codecov.io/gh/netboxlabs/opentelemetry-infinity/tree/main)
+[![Go Report Card](https://goreportcard.com/badge/github.com/netboxlabs/opentelemetry-infinity)](https://goreportcard.com/report/github.com/netboxlabs/opentelemetry-infinity)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/netboxlabs/opentelemetry-infinity)
 
 <p align="left">
   <strong>
@@ -38,12 +38,12 @@ Opentelemetry Infinity provide [otel-collector-contrib](https://github.com/open-
 ## Docker Image
 You can download and run using docker image:
 ```
-docker run --net=host ghcr.io/leoparente/opentelemetry-infinity run
+docker run --net=host netboxlabs/opentelemetry-infinity run
 ```
 ## Command Line Interface (CLI)
 Opentelemetry Infinity allows some start up configuration that is listed below. It disables `opentelemetry-collector` self telemetry by default to avoid port conflict. If you want to enable it back, be aware to handle it properly when starting more that one `otelcol-contrib`, i.e., applying more than one policy.
 ```sh
-docker run --net=host ghcr.io/leoparente/opentelemetry-infinity run --help
+docker run --net=host netboxlabs/opentelemetry-infinity run --help
 
 Run opentelemetry-infinity
 
@@ -62,7 +62,7 @@ Flags:
 ## REST API
 The default `otlpinf` address is `localhost:10222`. to change that you can specify host and port when starting `otlpinf`:
 ```sh
-docker run --net=host ghcr.io/leoparente/opentelemetry-infinity run -a {host} -p {port}
+docker run --net=host netboxlabs/opentelemetry-infinity run -a {host} -p {port}
 ```
 
 ### Routes (v1)

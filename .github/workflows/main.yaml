@@ -65,4 +65,4 @@ jobs:
 
       - name: Push opentelemetry-infinity container
         run: |
-          docker push -a ghcr.io/leoparente/opentelemetry-infinity
+          docker push -a netboxlabs/opentelemetry-infinity

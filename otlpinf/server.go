@@ -121,14 +121,9 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 			return
 
 		}
-		if len(data.Config) == 0 {
-			c.IndentedJSON(http.StatusForbidden, ReturnValue{"config field is required"})
-			return
-
-		}
 	}
 
-	r := runner.New(o.logger, policy, o.policiesDir, o.conf.SelfTelemetry)
+	r := runner.New(o.logger, policy, o.policiesDir, o.conf)
 	if err := r.Configure(&data); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
 		return

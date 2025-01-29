@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/otlpinf"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -21,20 +18,19 @@ var (
 	SelfTelemetry bool
 	ServerHost    string
 	ServerPort    uint64
+	Set           []string
+	FeatureGates  string
 )
 
 func Run(cmd *cobra.Command, args []string) {
-	initConfig()
-
-	// configuration
-	var config config.Config
-
-	err := viper.Unmarshal(&config)
-	if err != nil {
-		cobra.CheckErr(fmt.Errorf("opentelemetry-infinity start up error (config): %w", err))
-		os.Exit(1)
+	config := config.Config{
+		Debug:         Debug,
+		SelfTelemetry: SelfTelemetry,
+		ServerHost:    ServerHost,
+		ServerPort:    ServerPort,
+		Set:           Set,
+		FeatureGates:  FeatureGates,
 	}
-
 	// logger
 	var logger *zap.Logger
 	atomicLevel := zap.NewAtomicLevel()
@@ -93,19 +89,6 @@ func Run(cmd *cobra.Command, args []string) {
 	<-done
 }
 
-func initConfig() {
-	v := viper.New()
-	v.AutomaticEnv()
-	replacer := strings.NewReplacer(".", "_")
-	v.SetEnvKeyReplacer(replacer)
-	// note: viper seems to require a default (or a BindEnv) to be overridden by environment variables
-	v.SetDefault("otlpinf_debug", Debug)
-	v.SetDefault("otlpinf_self_telemetry", SelfTelemetry)
-	v.SetDefault("otlpinf_server_host", ServerHost)
-	v.SetDefault("otlpinf_server_port", ServerPort)
-	cobra.CheckErr(viper.MergeConfigMap(v.AllSettings()))
-}
-
 func main() {
 	rootCmd := &cobra.Command{
 		Use: "opentelemetry-infinity",
@@ -122,6 +105,8 @@ func main() {
 	runCmd.PersistentFlags().BoolVarP(&SelfTelemetry, "self_telemetry", "s", false, "Enable self telemetry for collectors. It is disabled by default to avoid port conflict")
 	runCmd.PersistentFlags().StringVarP(&ServerHost, "server_host", "a", "localhost", "Define REST Host")
 	runCmd.PersistentFlags().Uint64VarP(&ServerPort, "server_port", "p", 10222, "Define REST Port")
+	runCmd.PersistentFlags().StringSliceVarP(&Set, "set", "e", nil, "Define opentelemetry set")
+	runCmd.PersistentFlags().StringVarP(&FeatureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
 
 	rootCmd.AddCommand(runCmd)
 	if err := rootCmd.Execute(); err != nil {

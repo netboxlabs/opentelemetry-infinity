@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/amenzhinsky/go-memexec"
@@ -80,15 +79,15 @@ func GetCapabilities(logger *zap.Logger) ([]byte, error) {
 	return ret, nil
 }
 
-func New(logger *zap.Logger, policyName string, policyDir string, selfTelemetry bool) Runner {
+func New(logger *zap.Logger, policyName string, policyDir string, config *config.Config) Runner {
 	return Runner{
 		logger: logger, policyName: policyName, policyDir: policyDir,
-		selfTelemetry: selfTelemetry, sets: make([]string, 0), errChan: make(chan string),
+		selfTelemetry: config.SelfTelemetry, sets: config.Set, featureGates: config.FeatureGates, errChan: make(chan string),
 	}
 }
 
 func (r *Runner) Configure(c *config.Policy) error {
-	b, err := yaml.Marshal(&c.Config)
+	b, err := yaml.Marshal(&c)
 	if err != nil {
 		return err
 	}
@@ -102,16 +101,6 @@ func (r *Runner) Configure(c *config.Policy) error {
 	r.policyFile = f.Name()
 	if err = f.Close(); err != nil {
 		return err
-	}
-
-	if c.FeatureGates != nil {
-		r.featureGates = strings.Join(c.FeatureGates, ",")
-	}
-
-	if c.Set != nil {
-		for k, v := range c.Set {
-			r.sets = append(r.sets, strings.Join([]string{"--set", k, v}, "="))
-		}
 	}
 
 	r.options = []string{

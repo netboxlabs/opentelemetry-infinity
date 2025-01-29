@@ -23,10 +23,12 @@ var PolicyDir = os.TempDir()
 func TestRunnerNew(t *testing.T) {
 	// Arrange
 	logger := zaptest.NewLogger(t)
-	selfTelemetry := false
+	c := config.Config{
+		SelfTelemetry: false,
+	}
 
 	// Act
-	runner := New(logger, TestPolicy, PolicyDir, selfTelemetry)
+	runner := New(logger, TestPolicy, PolicyDir, &c)
 
 	// Assert
 	if runner.logger != logger {
@@ -41,8 +43,8 @@ func TestRunnerNew(t *testing.T) {
 		t.Errorf("Expected policyDir to be set to %s, got %s", PolicyDir, runner.policyDir)
 	}
 
-	if runner.selfTelemetry != selfTelemetry {
-		t.Errorf("Expected selfTelemetry to be set to %v, got %v", selfTelemetry, runner.selfTelemetry)
+	if runner.selfTelemetry != c.SelfTelemetry {
+		t.Errorf("Expected selfTelemetry to be set to %v, got %v", c.SelfTelemetry, runner.selfTelemetry)
 	}
 
 	if len(runner.sets) != 0 {
@@ -59,13 +61,11 @@ func TestRunnerConfigure(t *testing.T) {
 		policyName:    TestPolicy,
 		policyDir:     PolicyDir,
 		selfTelemetry: enableTelemetry,
+		featureGates:  "gate1,gate2",
+		sets:          []string{"--set=set1=set1"},
 	}
 	config := &config.Policy{
-		FeatureGates: []string{"gate1", "gate2"},
-		Set: map[string]string{
-			"set1": "set1",
-		},
-		Config: map[string]interface{}{
+		Receivers: map[string]interface{}{
 			"policy": "value1",
 		},
 	}
@@ -103,7 +103,7 @@ func TestRunnerConfigureError(t *testing.T) {
 
 	// Error in Yaml Marshal
 	policy := &config.Policy{
-		Config: map[string]interface{}{
+		Receivers: map[string]interface{}{
 			"function": func() {},
 		},
 	}
@@ -126,7 +126,7 @@ func TestRunnerConfigureError(t *testing.T) {
 
 	// Error in create temp file
 	policy = &config.Policy{
-		Config: map[string]interface{}{
+		Receivers: map[string]interface{}{
 			"policy": "simple",
 		},
 	}
@@ -148,14 +148,11 @@ func TestRunnerStartStop(t *testing.T) {
 		policyName:    TestPolicy,
 		policyDir:     PolicyDir,
 		selfTelemetry: true,
+		featureGates:  "awsemf.nodimrollupdefault,exporter.datadogexporter.DisableAPMStats",
+		sets:          []string{"--set=set1=set1", "--set=set2=set2"},
 	}
 	config := &config.Policy{
-		FeatureGates: []string{"awsemf.nodimrollupdefault", "exporter.datadogexporter.DisableAPMStats"},
-		Set: map[string]string{
-			"set1": "set1",
-			"set2": "set2",
-		},
-		Config: map[string]interface{}{
+		Receivers: map[string]interface{}{
 			"policy": "value1",
 		},
 	}

@@ -37,82 +37,52 @@ func TestOtlpInfRestApis(t *testing.T) {
 	}
 
 	otlp, err := New(logger, &cfg)
-	if err != nil {
-		t.Errorf(NewErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	otlp.setupRouter()
 
-	// Act
+	// Act and Assert
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/status", nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Assert
-	if w.Code != http.StatusOK {
-		t.Errorf(ErrorMessage, w.Code, http.StatusOK)
-	}
-
-	// Act
+	// Act and Assert
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/api/v1/capabilities", nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Assert
-	if w.Code != http.StatusOK {
-		t.Errorf(ErrorMessage, w.Code, http.StatusOK)
-	}
-
-	// Act
+	// Act and Assert
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", PoliciesApi, nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Assert
-	if w.Code != http.StatusOK {
-		t.Errorf(ErrorMessage, w.Code, http.StatusOK)
-	}
-
-	// Act get invalid policy
+	// Act and Assert get invalid policy
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/api/v1/policies/invalid_policy", nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	// Assert
-	if w.Code != http.StatusNotFound {
-		t.Errorf(ErrorMessage, w.Code, http.StatusNotFound)
-	}
-
-	// Act delete invalid policy
+	// Act and Asset delete invalid policy
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("DELETE", "/api/v1/policies/invalid_policy", nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	// Assert
-	if w.Code != http.StatusNotFound {
-		t.Errorf(ErrorMessage, w.Code, http.StatusNotFound)
-	}
-
-	// Act invalid header
+	// Act and Assert invalid header
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("POST", PoliciesApi, nil)
 	otlp.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	// Assert
-	if w.Code != http.StatusBadRequest {
-		t.Errorf(ErrorMessage, w.Code, http.StatusBadRequest)
-	}
-
-	// Act invalid policy config
+	// Act and Assert invalid policy config
 	w = httptest.NewRecorder()
 	req, _ = http.NewRequest("POST", PoliciesApi, bytes.NewBuffer([]byte("invalid\n")))
 	req.Header.Set("Content-Type", HttpYamlContent)
 	otlp.router.ServeHTTP(w, req)
-
-	// Assert
-	if w.Code != http.StatusBadRequest {
-		t.Errorf(ErrorMessage, w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestOtlpinfCreateDeletePolicy(t *testing.T) {
@@ -132,9 +102,7 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)
-	if err != nil {
-		t.Errorf("Start() error = %v", err)
-	}
+	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -143,24 +111,22 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	// Act Create Valid Policy
 	data := map[string]interface{}{
 		policyName: map[string]interface{}{
-			"config": map[string]interface{}{
-				"receivers": map[string]interface{}{
-					"otlp": map[string]interface{}{
-						"protocols": map[string]interface{}{
-							"http": nil,
-							"grpc": nil,
-						},
+			"receivers": map[string]interface{}{
+				"otlp": map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"http": nil,
+						"grpc": nil,
 					},
 				},
-				"exporters": map[string]interface{}{
-					"debug": map[string]interface{}{},
-				},
-				"service": map[string]interface{}{
-					"pipelines": map[string]interface{}{
-						"metrics": map[string]interface{}{
-							"receivers": []string{"otlp"},
-							"exporters": []string{"debug"},
-						},
+			},
+			"exporters": map[string]interface{}{
+				"debug": map[string]interface{}{},
+			},
+			"service": map[string]interface{}{
+				"pipelines": map[string]interface{}{
+					"metrics": map[string]interface{}{
+						"receivers": []string{"otlp"},
+						"exporters": []string{"debug"},
 					},
 				},
 			},
@@ -168,70 +134,44 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	err = yaml.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		t.Errorf(YamlErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	resp, err := http.Post(server+PoliciesApi, HttpYamlContent, &buf)
-	if err != nil {
-		t.Errorf(PostErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, resp)
 
-	// Act Get Policies
+	// Act and Assert Get Policies
 	resp, err = http.Get(server + PoliciesApi)
-	if err != nil {
-		t.Errorf("http.Get() error = %v", err)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Assert
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusOK)
-	}
-
-	// Act Get Valid Policy
+	// Act and Assert Get Valid Policy
 	resp, err = http.Get(server + "/api/v1/policies/" + policyName)
-	if err != nil {
-		t.Errorf("http.Get() error = %v", err)
-	}
-
-	// Assert
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusOK)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Act Try to insert same policy
 	err = yaml.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		t.Errorf(YamlErrorMessage, err)
-	}
+	assert.NoError(t, err)
+
 	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
-	if err != nil {
-		t.Errorf(PostErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
-	if resp.StatusCode != http.StatusConflict {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusConflict)
-	}
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 
 	// Act Delete Policy
 	req, err := http.NewRequest("DELETE", server+"/api/v1/policies/"+policyName, nil)
-	if err != nil {
-		t.Errorf("http.NewRequest() error = %v", err)
-	}
+	assert.NoError(t, err)
+
 	client := &http.Client{}
 	resp, err = client.Do(req)
-	if err != nil {
-		t.Errorf("client.Do() error = %v", err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	otlp.Stop(ctx)
 }
@@ -249,15 +189,11 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 
 	// Act and Assert
 	otlp, err := New(logger, &cfg)
-	if err != nil {
-		t.Errorf(NewErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)
-	if err != nil {
-		t.Errorf("Start() error = %v", err)
-	}
+	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -271,66 +207,48 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	err = yaml.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		t.Errorf(YamlErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	resp, err := http.Post(server+PoliciesApi, HttpYamlContent, &buf)
-	if err != nil {
-		t.Errorf(PostErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
-	if resp.StatusCode != http.StatusForbidden {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusForbidden)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	// Act try to insert policy with invalid config
 	data[policyName] = map[string]interface{}{
-		"config": map[string]interface{}{
+		"receivers": map[string]interface{}{
 			"invalid": nil,
 		},
 	}
 	err = yaml.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		t.Errorf(YamlErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
-	if err != nil {
-		t.Errorf(PostErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	// Act try to insert two policies at once
 	data[policyName] = map[string]interface{}{
-		"config": map[string]interface{}{
+		"receivers": map[string]interface{}{
 			"invalid": nil,
 		},
 	}
 	data[policyName+"_new"] = map[string]interface{}{
-		"config": map[string]interface{}{
+		"receivers": map[string]interface{}{
 			"invalid": nil,
 		},
 	}
 	err = yaml.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		t.Errorf(YamlErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
-	if err != nil {
-		t.Errorf(PostErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	// Assert
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf(ErrorMessage, resp.StatusCode, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	otlp.Stop(ctx)
 }
@@ -350,16 +268,12 @@ func TestOtlpinfStartError(t *testing.T) {
 
 	// Act and Assert
 	otlp, err := New(logger, &cfg)
-	if err != nil {
-		t.Errorf(NewErrorMessage, err)
-	}
+	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)
+	assert.Error(t, err)
 
-	if err == nil {
-		t.Errorf("Expected an error, but got none")
-	}
 	if !strings.Contains(err.Error(), "invalid/prefix") {
 		t.Errorf("Expected an 'invalid/prefix' error, but got: %s", err.Error())
 	}

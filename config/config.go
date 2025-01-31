@@ -2,6 +2,9 @@ package config
 
 import "time"
 
+// ContextKey represents the key for the context
+type ContextKey string
+
 // Status represents the status of the service
 type Status struct {
 	StartTime time.Time     `json:"start_time"`

@@ -18,13 +18,9 @@ import (
 )
 
 const (
-	TestHost         = "localhost"
-	PoliciesApi      = "/api/v1/policies"
-	HttpYamlContent  = "application/x-yaml"
-	ErrorMessage     = "HTTP status code = %v, wanted %v"
-	NewErrorMessage  = "New() error = %v"
-	PostErrorMessage = "http.Post() error = %v"
-	YamlErrorMessage = "yaml.NewEncoder() error = %v"
+	TestHost        = "localhost"
+	PoliciesAPI     = "/api/v1/policies"
+	HTTPYamlContent = "application/x-yaml"
 )
 
 func TestOtlpInfRestApis(t *testing.T) {
@@ -55,7 +51,7 @@ func TestOtlpInfRestApis(t *testing.T) {
 
 	// Act and Assert
 	w = httptest.NewRecorder()
-	req, _ = http.NewRequest("GET", PoliciesApi, nil)
+	req, _ = http.NewRequest("GET", PoliciesAPI, nil)
 	otlp.router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -73,14 +69,14 @@ func TestOtlpInfRestApis(t *testing.T) {
 
 	// Act and Assert invalid header
 	w = httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", PoliciesApi, nil)
+	req, _ = http.NewRequest("POST", PoliciesAPI, nil)
 	otlp.router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	// Act and Assert invalid policy config
 	w = httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", PoliciesApi, bytes.NewBuffer([]byte("invalid\n")))
-	req.Header.Set("Content-Type", HttpYamlContent)
+	req, _ = http.NewRequest("POST", PoliciesAPI, bytes.NewBuffer([]byte("invalid\n")))
+	req.Header.Set("Content-Type", HTTPYamlContent)
 	otlp.router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -98,7 +94,7 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 
 	// Act and Assert
 	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err, NewErrorMessage, err)
+	assert.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)
@@ -136,32 +132,39 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
-	resp, err := http.Post(server+PoliciesApi, HttpYamlContent, &buf)
+	resp, err := http.Post(server+PoliciesAPI, HTTPYamlContent, &buf)
+	assert.NoError(t, err)
+	err = resp.Body.Close()
 	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, resp)
 
 	// Act and Assert Get Policies
-	resp, err = http.Get(server + PoliciesApi)
+	resp, err = http.Get(server + PoliciesAPI)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	// Act and Assert Get Valid Policy
 	resp, err = http.Get(server + "/api/v1/policies/" + policyName)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	// Act Try to insert same policy
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
-	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
+	resp, err = http.Post(server+PoliciesAPI, HTTPYamlContent, &buf)
 	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
-
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 	// Act Delete Policy
 	req, err := http.NewRequest("DELETE", server+"/api/v1/policies/"+policyName, nil)
 	assert.NoError(t, err)
@@ -172,6 +175,8 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 
 	// Assert
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	otlp.Stop(ctx)
 }
@@ -209,11 +214,13 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
-	resp, err := http.Post(server+PoliciesApi, HttpYamlContent, &buf)
+	resp, err := http.Post(server+PoliciesAPI, HTTPYamlContent, &buf)
 	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	// Act try to insert policy with invalid config
 	data[policyName] = map[string]interface{}{
@@ -224,11 +231,13 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
-	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
+	resp, err = http.Post(server+PoliciesAPI, HTTPYamlContent, &buf)
 	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	// Act try to insert two policies at once
 	data[policyName] = map[string]interface{}{
@@ -244,11 +253,13 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
-	resp, err = http.Post(server+PoliciesApi, HttpYamlContent, &buf)
+	resp, err = http.Post(server+PoliciesAPI, HTTPYamlContent, &buf)
 	assert.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	err = resp.Body.Close()
+	assert.NoError(t, err)
 
 	otlp.Stop(ctx)
 }
@@ -279,5 +290,6 @@ func TestOtlpinfStartError(t *testing.T) {
 	}
 
 	// Reset the temporary directory environment variable to its original value
-	os.Unsetenv("TMPDIR")
+	err = os.Unsetenv("TMPDIR")
+	assert.NoError(t, err)
 }

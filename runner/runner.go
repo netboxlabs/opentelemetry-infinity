@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/amenzhinsky/go-memexec"
 	"github.com/netboxlabs/opentelemetry-infinity/config"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,7 +48,7 @@ type State struct {
 
 // Runner is responsible for executing opentelemetry policies
 type Runner struct {
-	logger        *zap.Logger
+	logger        *slog.Logger
 	policyName    string
 	policyDir     string
 	policyFile    string
@@ -64,14 +64,14 @@ type Runner struct {
 }
 
 // GetCapabilities returns the capabilities of the runner
-func GetCapabilities(logger *zap.Logger) ([]byte, error) {
+func GetCapabilities(logger *slog.Logger) ([]byte, error) {
 	exe, err := memexec.New(otelContrib)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if err := exe.Close(); err != nil {
-			logger.Error("failed to exit", zap.Error(err))
+			logger.Error("failed to exit", "error", err)
 		}
 	}()
 	cmd := exe.Command("components")
@@ -82,9 +82,9 @@ func GetCapabilities(logger *zap.Logger) ([]byte, error) {
 	return ret, nil
 }
 
-// New creates a new runner
-func New(logger *zap.Logger, policyName string, policyDir string, config *config.Config) Runner {
-	return Runner{
+// NewRunner creates a new runner
+func NewRunner(logger *slog.Logger, policyName string, policyDir string, config *config.Config) *Runner {
+	return &Runner{
 		logger: logger, policyName: policyName, policyDir: policyDir,
 		selfTelemetry: config.SelfTelemetry, sets: config.Set, featureGates: config.FeatureGates, errChan: make(chan string),
 	}
@@ -139,7 +139,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	}
 	defer func() {
 		if err := exe.Close(); err != nil {
-			r.logger.Error("failed to exit", zap.Error(err))
+			r.logger.Error("failed to exit", "error", err)
 		}
 	}()
 
@@ -155,7 +155,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			r.state.LastLog = scanner.Text()
-			r.logger.Info("otelcol-contrib", zap.String("policy", r.policyName), zap.String("log", r.state.LastLog))
+			r.logger.Info("otelcol-contrib", slog.String("policy", r.policyName), slog.String("log", r.state.LastLog))
 			if r.cmd.Err != nil {
 				r.errChan <- r.state.LastLog
 			}
@@ -181,7 +181,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		return errors.New(string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...)))
 	case <-ctxTimeout.Done():
 		r.setStatus(running)
-		r.logger.Info("runner proccess started successfully", zap.String("policy", r.policyName), zap.Any("pid", r.cmd.Process.Pid))
+		r.logger.Info("runner proccess started successfully", slog.String("policy", r.policyName), slog.Any("pid", r.cmd.Process.Pid))
 	}
 
 	go func() {
@@ -202,10 +202,10 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 
 // Stop stops the runner
 func (r *Runner) Stop(ctx context.Context) {
-	r.logger.Info("routine call to stop runner", zap.Any("routine", ctx.Value("routine")))
+	r.logger.Info("routine call to stop runner", slog.Any("routine", ctx.Value("routine")))
 	defer r.cancelFunc()
 	r.setStatus(offline)
-	r.logger.Info("runner process stopped", zap.String("policy", r.policyName))
+	r.logger.Info("runner process stopped", slog.String("policy", r.policyName))
 }
 
 // GetStatus returns the status of the runner

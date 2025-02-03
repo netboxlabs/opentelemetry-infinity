@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,16 +25,14 @@ const (
 
 func TestOtlpInfRestApis(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
 		ServerPort: 55680,
 	}
 
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
-
+	otlp := NewOtlp(logger, &cfg)
 	otlp.setupRouter()
 
 	// Act and Assert
@@ -83,7 +81,7 @@ func TestOtlpInfRestApis(t *testing.T) {
 
 func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -93,11 +91,10 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	server := fmt.Sprintf("http://%s:%v", cfg.ServerHost, cfg.ServerPort)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = otlp.Start(ctx, cancel)
+	err := otlp.Start(ctx, cancel)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -183,7 +180,7 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 
 func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -193,11 +190,10 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	server := fmt.Sprintf("http://%s:%v", cfg.ServerHost, cfg.ServerPort)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = otlp.Start(ctx, cancel)
+	err := otlp.Start(ctx, cancel)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -266,7 +262,7 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 
 func TestOtlpinfStartError(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -278,8 +274,7 @@ func TestOtlpinfStartError(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)

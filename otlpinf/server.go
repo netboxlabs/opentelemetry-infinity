@@ -9,11 +9,9 @@ import (
 	"time"
 
 	yson "github.com/ghodss/yaml"
-	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/runner"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,9 +27,6 @@ type returnValue struct {
 func (o *OltpInf) setupRouter() {
 	gin.SetMode(gin.ReleaseMode)
 	o.router = gin.New()
-
-	o.router.Use(ginzap.Ginzap(o.logger, time.RFC3339, true))
-	o.router.Use(ginzap.RecoveryWithZap(o.logger, true))
 
 	// Routes
 	o.router.GET("/api/v1/status", o.getStatus)
@@ -50,7 +45,7 @@ func (o *OltpInf) startServer() {
 		serv := serverHost + ":" + serverPort
 		o.logger.Info("starting otlp_inf server at: " + serv)
 		if err := o.router.Run(serv); err != nil {
-			o.logger.Fatal("shutting down the server", zap.Error(err))
+			o.logger.Error("shutting down the server", "error", err)
 		}
 	}()
 }
@@ -123,7 +118,7 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 		}
 	}
 
-	r := runner.New(o.logger, policy, o.policiesDir, o.conf)
+	r := runner.NewRunner(o.logger, policy, o.policiesDir, o.conf)
 	if err := r.Configure(&data); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return

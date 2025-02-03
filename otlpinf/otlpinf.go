@@ -33,7 +33,7 @@ type OltpInf struct {
 	capabilities   []byte
 }
 
-// New creates a new otlpinf routine
+// NewOtlp creates a new otlpinf routine
 func NewOtlp(logger *slog.Logger, c *config.Config) *OltpInf {
 	return &OltpInf{logger: logger, conf: c, policies: make(map[string]RunnerInfo)}
 }

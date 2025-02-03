@@ -82,7 +82,7 @@ func GetCapabilities(logger *slog.Logger) ([]byte, error) {
 	return ret, nil
 }
 
-// New creates a new runner
+// NewRunner creates a new runner
 func NewRunner(logger *slog.Logger, policyName string, policyDir string, config *config.Config) *Runner {
 	return &Runner{
 		logger: logger, policyName: policyName, policyDir: policyDir,

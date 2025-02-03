@@ -69,7 +69,9 @@ jobs:
       - name: Output Result
         if: always()
         run: cat .coverage/test-report.md
+
       - name: Find comment
+        if: ${{ github.event_name == 'pull_request' }}
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e #v3.1.0
         id: existing-comment
         with:

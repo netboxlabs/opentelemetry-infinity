@@ -3,13 +3,13 @@ package runner
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
-	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,7 +22,7 @@ var PolicyDir = os.TempDir()
 
 func TestRunnerNew(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	c := config.Config{
 		SelfTelemetry: false,
 	}
@@ -54,7 +54,7 @@ func TestRunnerNew(t *testing.T) {
 
 func TestRunnerConfigure(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	enableTelemetry := false
 	runner := &Runner{
 		logger:        logger,
@@ -93,7 +93,7 @@ func TestRunnerConfigure(t *testing.T) {
 }
 
 func TestRunnerConfigureError(t *testing.T) {
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	runner := &Runner{
 		logger:        logger,
 		policyName:    "invalid/pattern",
@@ -142,7 +142,7 @@ func TestRunnerConfigureError(t *testing.T) {
 
 func TestRunnerStartStop(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	runner := &Runner{
 		logger:        logger,
 		policyName:    TestPolicy,
@@ -178,7 +178,7 @@ func TestRunnerStartStop(t *testing.T) {
 }
 
 func TestRunnerGetCapabilities(t *testing.T) {
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 
 	// Act
 	caps, err := GetCapabilities(logger)

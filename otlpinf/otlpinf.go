@@ -2,13 +2,13 @@ package otlpinf
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/runner"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,7 +22,7 @@ type RunnerInfo struct {
 
 // OltpInf represents the otlpinf routine
 type OltpInf struct {
-	logger         *zap.Logger
+	logger         *slog.Logger
 	conf           *config.Config
 	stat           config.Status
 	policies       map[string]RunnerInfo
@@ -34,7 +34,7 @@ type OltpInf struct {
 }
 
 // New creates a new otlpinf routine
-func NewOtlp(logger *zap.Logger, c *config.Config) *OltpInf {
+func NewOtlp(logger *slog.Logger, c *config.Config) *OltpInf {
 	return &OltpInf{logger: logger, conf: c, policies: make(map[string]RunnerInfo)}
 }
 
@@ -71,10 +71,10 @@ func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) erro
 
 // Stop stops the otlpinf routine
 func (o *OltpInf) Stop(ctx context.Context) {
-	o.logger.Info("routine call for stop otlpinf", zap.Any("routine", ctx.Value("routine")))
+	o.logger.Info("routine call for stop otlpinf", slog.Any("routine", ctx.Value("routine")))
 	defer func() {
 		if err := os.RemoveAll(o.policiesDir); err != nil {
-			o.logger.Error("error removing policies directory", zap.Error(err))
+			o.logger.Error("error removing policies directory", "error", err)
 		}
 	}()
 	defer o.cancelFunction()

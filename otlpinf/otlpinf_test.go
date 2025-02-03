@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,7 +25,7 @@ const (
 
 func TestOtlpInfRestApis(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -81,7 +81,7 @@ func TestOtlpInfRestApis(t *testing.T) {
 
 func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -180,7 +180,7 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 
 func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,
@@ -262,7 +262,7 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 
 func TestOtlpinfStartError(t *testing.T) {
 	// Arrange
-	logger := zaptest.NewLogger(t)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: false}))
 	cfg := config.Config{
 		Debug:      true,
 		ServerHost: TestHost,

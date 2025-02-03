@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,8 +10,6 @@ import (
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/otlpinf"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const routineKey config.ContextKey = "routine"
@@ -34,24 +33,12 @@ func run(_ *cobra.Command, _ []string) {
 		FeatureGates:  featureGates,
 	}
 	// logger
-	var logger *zap.Logger
-	atomicLevel := zap.NewAtomicLevel()
+	var logger *slog.Logger
+	level := slog.LevelInfo
 	if debug {
-		atomicLevel.SetLevel(zap.DebugLevel)
-	} else {
-		atomicLevel.SetLevel(zap.InfoLevel)
+		level = slog.LevelDebug
 	}
-	encoderCfg := zap.NewProductionEncoderConfig()
-	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderCfg),
-		os.Stdout,
-		atomicLevel,
-	)
-	logger = zap.New(core, zap.AddCaller())
-	defer func(logger *zap.Logger) {
-		_ = logger.Sync()
-	}(logger)
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
 	// new otlpinf
 	a := otlpinf.NewOtlp(logger, &config)
@@ -80,7 +67,7 @@ func run(_ *cobra.Command, _ []string) {
 	// start otlpinf
 	err := a.Start(rootCtx, cancelFunc)
 	if err != nil {
-		logger.Error("otlpinf startup error", zap.Error(err))
+		logger.Error("otlpinf startup error", "error", err)
 		os.Exit(1)
 	}
 

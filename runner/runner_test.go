@@ -28,7 +28,7 @@ func TestRunnerNew(t *testing.T) {
 	}
 
 	// Act
-	runner := New(logger, TestPolicy, PolicyDir, &c)
+	runner := NewRunner(logger, TestPolicy, PolicyDir, &c)
 
 	// Assert
 	if runner.logger != logger {

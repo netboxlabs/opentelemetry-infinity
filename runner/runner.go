@@ -83,8 +83,8 @@ func GetCapabilities(logger *zap.Logger) ([]byte, error) {
 }
 
 // New creates a new runner
-func New(logger *zap.Logger, policyName string, policyDir string, config *config.Config) Runner {
-	return Runner{
+func NewRunner(logger *zap.Logger, policyName string, policyDir string, config *config.Config) *Runner {
+	return &Runner{
 		logger: logger, policyName: policyName, policyDir: policyDir,
 		selfTelemetry: config.SelfTelemetry, sets: config.Set, featureGates: config.FeatureGates, errChan: make(chan string),
 	}

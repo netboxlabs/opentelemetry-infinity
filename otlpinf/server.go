@@ -123,7 +123,7 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 		}
 	}
 
-	r := runner.New(o.logger, policy, o.policiesDir, o.conf)
+	r := runner.NewRunner(o.logger, policy, o.policiesDir, o.conf)
 	if err := r.Configure(&data); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return

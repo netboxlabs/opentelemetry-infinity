@@ -54,11 +54,7 @@ func run(_ *cobra.Command, _ []string) {
 	}(logger)
 
 	// new otlpinf
-	a, err := otlpinf.New(logger, &config)
-	if err != nil {
-		logger.Error("otlpinf start up error", zap.Error(err))
-		os.Exit(1)
-	}
+	a := otlpinf.NewOtlp(logger, &config)
 
 	// handle signals
 	done := make(chan bool, 1)
@@ -82,7 +78,7 @@ func run(_ *cobra.Command, _ []string) {
 	}()
 
 	// start otlpinf
-	err = a.Start(rootCtx, cancelFunc)
+	err := a.Start(rootCtx, cancelFunc)
 	if err != nil {
 		logger.Error("otlpinf startup error", zap.Error(err))
 		os.Exit(1)

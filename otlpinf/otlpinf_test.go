@@ -32,9 +32,7 @@ func TestOtlpInfRestApis(t *testing.T) {
 		ServerPort: 55680,
 	}
 
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
-
+	otlp := NewOtlp(logger, &cfg)
 	otlp.setupRouter()
 
 	// Act and Assert
@@ -93,11 +91,10 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	server := fmt.Sprintf("http://%s:%v", cfg.ServerHost, cfg.ServerPort)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = otlp.Start(ctx, cancel)
+	err := otlp.Start(ctx, cancel)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -193,11 +190,10 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	server := fmt.Sprintf("http://%s:%v", cfg.ServerHost, cfg.ServerPort)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = otlp.Start(ctx, cancel)
+	err := otlp.Start(ctx, cancel)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -278,8 +274,7 @@ func TestOtlpinfStartError(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Act and Assert
-	otlp, err := New(logger, &cfg)
-	assert.NoError(t, err)
+	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = otlp.Start(ctx, cancel)

@@ -17,7 +17,7 @@ const routineKey config.ContextKey = "routine"
 // RunnerInfo represents the runner info
 type RunnerInfo struct {
 	Policy   config.Policy
-	Instance runner.Runner
+	Instance *runner.Runner
 }
 
 // OltpInf represents the otlpinf routine
@@ -34,8 +34,8 @@ type OltpInf struct {
 }
 
 // New creates a new otlpinf routine
-func New(logger *zap.Logger, c *config.Config) (OltpInf, error) {
-	return OltpInf{logger: logger, conf: c, policies: make(map[string]RunnerInfo)}, nil
+func NewOtlp(logger *zap.Logger, c *config.Config) *OltpInf {
+	return &OltpInf{logger: logger, conf: c, policies: make(map[string]RunnerInfo)}
 }
 
 // Start starts the otlpinf routine

@@ -17,6 +17,26 @@ permissions:
   pull-requests: write
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          check-latest: true
+
+      - name: get otelcol-contrib
+        run: make getotelcol
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 #v6.1.1
+        with:
+          version: v1.62
+          args: --config .github/golangci.yaml
 
   test:
     runs-on: ubuntu-latest
@@ -26,7 +46,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.23.x'
 
       - name: get otelcol-contrib
         run: make getotelcol
@@ -49,7 +69,9 @@ jobs:
       - name: Output Result
         if: always()
         run: cat .coverage/test-report.md
+
       - name: Find comment
+        if: ${{ github.event_name == 'pull_request' }}
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e #v3.1.0
         id: existing-comment
         with:

@@ -12,11 +12,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const routineKey config.ContextKey = "routine"
+
+// RunnerInfo represents the runner info
 type RunnerInfo struct {
 	Policy   config.Policy
 	Instance runner.Runner
 }
 
+// OltpInf represents the otlpinf routine
 type OltpInf struct {
 	logger         *zap.Logger
 	conf           *config.Config
@@ -29,13 +33,15 @@ type OltpInf struct {
 	capabilities   []byte
 }
 
+// New creates a new otlpinf routine
 func New(logger *zap.Logger, c *config.Config) (OltpInf, error) {
 	return OltpInf{logger: logger, conf: c, policies: make(map[string]RunnerInfo)}, nil
 }
 
+// Start starts the otlpinf routine
 func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) error {
 	o.stat.StartTime = time.Now()
-	o.ctx = context.WithValue(ctx, "routine", "otlpInfRoutine")
+	o.ctx = context.WithValue(ctx, routineKey, "otlpInfRoutine")
 	o.cancelFunction = cancelFunc
 
 	var err error
@@ -63,8 +69,13 @@ func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) erro
 	return nil
 }
 
+// Stop stops the otlpinf routine
 func (o *OltpInf) Stop(ctx context.Context) {
 	o.logger.Info("routine call for stop otlpinf", zap.Any("routine", ctx.Value("routine")))
-	defer os.RemoveAll(o.policiesDir)
-	o.cancelFunction()
+	defer func() {
+		if err := os.RemoveAll(o.policiesDir); err != nil {
+			o.logger.Error("error removing policies directory", zap.Error(err))
+		}
+	}()
+	defer o.cancelFunction()
 }

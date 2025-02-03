@@ -17,26 +17,27 @@ import (
 )
 
 //go:embed otelcol-contrib
-var otel_contrib []byte
+var otelContrib []byte
 
-type Status int
+type status int
 
 const (
-	Unknown Status = iota
-	Running
-	RunnerError
-	Offline
+	unknown status = iota
+	running
+	runnerError
+	offline
 )
 
-var MapStatus = map[Status]string{
-	Unknown:     "unknown",
-	Running:     "running",
-	RunnerError: "runner_error",
-	Offline:     "offline",
+var mapStatus = map[status]string{
+	unknown:     "unknown",
+	running:     "running",
+	runnerError: "runner_error",
+	offline:     "offline",
 }
 
+// State represents the state of the runner
 type State struct {
-	Status        Status    `yaml:"-"`
+	Status        status    `yaml:"-"`
 	StatusText    string    `yaml:"status"`
 	startTime     time.Time `yaml:"start_time"`
 	RestartCount  int64     `yaml:"restart_count"`
@@ -45,6 +46,7 @@ type State struct {
 	LastRestartTS time.Time `yaml:"last_restart_time"`
 }
 
+// Runner is responsible for executing opentelemetry policies
 type Runner struct {
 	logger        *zap.Logger
 	policyName    string
@@ -61,8 +63,9 @@ type Runner struct {
 	errChan       chan string
 }
 
+// GetCapabilities returns the capabilities of the runner
 func GetCapabilities(logger *zap.Logger) ([]byte, error) {
-	exe, err := memexec.New(otel_contrib)
+	exe, err := memexec.New(otelContrib)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +82,7 @@ func GetCapabilities(logger *zap.Logger) ([]byte, error) {
 	return ret, nil
 }
 
+// New creates a new runner
 func New(logger *zap.Logger, policyName string, policyDir string, config *config.Config) Runner {
 	return Runner{
 		logger: logger, policyName: policyName, policyDir: policyDir,
@@ -86,6 +90,7 @@ func New(logger *zap.Logger, policyName string, policyDir string, config *config
 	}
 }
 
+// Configure configures the runner with the given policy
 func (r *Runner) Configure(c *config.Policy) error {
 	b, err := yaml.Marshal(&c)
 	if err != nil {
@@ -123,11 +128,12 @@ func (r *Runner) Configure(c *config.Policy) error {
 	return nil
 }
 
+// Start starts the runner
 func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error {
 	r.cancelFunc = cancelFunc
 	r.ctx = ctx
 
-	exe, err := memexec.New(otel_contrib)
+	exe, err := memexec.New(otelContrib)
 	if err != nil {
 		return err
 	}
@@ -174,7 +180,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	case line := <-r.errChan:
 		return errors.New(string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...)))
 	case <-ctxTimeout.Done():
-		r.setStatus(Running)
+		r.setStatus(running)
 		r.logger.Info("runner proccess started successfully", zap.String("policy", r.policyName), zap.Any("pid", r.cmd.Process.Pid))
 	}
 
@@ -183,7 +189,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 			select {
 			case line := <-r.errChan:
 				r.state.LastError = string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...))
-				r.setStatus(RunnerError)
+				r.setStatus(runnerError)
 			case <-r.ctx.Done():
 				r.Stop(r.ctx)
 				return
@@ -194,18 +200,20 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	return nil
 }
 
+// Stop stops the runner
 func (r *Runner) Stop(ctx context.Context) {
 	r.logger.Info("routine call to stop runner", zap.Any("routine", ctx.Value("routine")))
 	defer r.cancelFunc()
-	r.setStatus(Offline)
+	r.setStatus(offline)
 	r.logger.Info("runner process stopped", zap.String("policy", r.policyName))
 }
 
+// GetStatus returns the status of the runner
 func (r *Runner) GetStatus() State {
 	return r.state
 }
 
-func (r *Runner) setStatus(s Status) {
+func (r *Runner) setStatus(s status) {
 	r.state.Status = s
-	r.state.StatusText = MapStatus[s]
+	r.state.StatusText = mapStatus[s]
 }

@@ -13,28 +13,30 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const routineKey config.ContextKey = "routine"
+
 var (
-	Debug         bool
-	SelfTelemetry bool
-	ServerHost    string
-	ServerPort    uint64
-	Set           []string
-	FeatureGates  string
+	debug         bool
+	selfTelemetry bool
+	serverHost    string
+	serverPort    uint64
+	set           []string
+	featureGates  string
 )
 
-func Run(cmd *cobra.Command, args []string) {
+func run(_ *cobra.Command, _ []string) {
 	config := config.Config{
-		Debug:         Debug,
-		SelfTelemetry: SelfTelemetry,
-		ServerHost:    ServerHost,
-		ServerPort:    ServerPort,
-		Set:           Set,
-		FeatureGates:  FeatureGates,
+		Debug:         debug,
+		SelfTelemetry: selfTelemetry,
+		ServerHost:    serverHost,
+		ServerPort:    serverPort,
+		Set:           set,
+		FeatureGates:  featureGates,
 	}
 	// logger
 	var logger *zap.Logger
 	atomicLevel := zap.NewAtomicLevel()
-	if Debug {
+	if debug {
 		atomicLevel.SetLevel(zap.DebugLevel)
 	} else {
 		atomicLevel.SetLevel(zap.InfoLevel)
@@ -60,7 +62,7 @@ func Run(cmd *cobra.Command, args []string) {
 
 	// handle signals
 	done := make(chan bool, 1)
-	rootCtx, cancelFunc := context.WithCancel(context.WithValue(context.Background(), "routine", "mainRoutine"))
+	rootCtx, cancelFunc := context.WithCancel(context.WithValue(context.Background(), routineKey, "mainRoutine"))
 
 	go func() {
 		sigs := make(chan os.Signal, 1)
@@ -98,15 +100,15 @@ func main() {
 		Use:   "run",
 		Short: "Run opentelemetry-infinity",
 		Long:  `Run opentelemetry-infinity`,
-		Run:   Run,
+		Run:   run,
 	}
 
-	runCmd.PersistentFlags().BoolVarP(&Debug, "debug", "d", false, "Enable verbose (debug level) output")
-	runCmd.PersistentFlags().BoolVarP(&SelfTelemetry, "self_telemetry", "s", false, "Enable self telemetry for collectors. It is disabled by default to avoid port conflict")
-	runCmd.PersistentFlags().StringVarP(&ServerHost, "server_host", "a", "localhost", "Define REST Host")
-	runCmd.PersistentFlags().Uint64VarP(&ServerPort, "server_port", "p", 10222, "Define REST Port")
-	runCmd.PersistentFlags().StringSliceVarP(&Set, "set", "e", nil, "Define opentelemetry set")
-	runCmd.PersistentFlags().StringVarP(&FeatureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
+	runCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable verbose (debug level) output")
+	runCmd.PersistentFlags().BoolVarP(&selfTelemetry, "self_telemetry", "s", false, "Enable self telemetry for collectors. It is disabled by default to avoid port conflict")
+	runCmd.PersistentFlags().StringVarP(&serverHost, "server_host", "a", "localhost", "Define REST Host")
+	runCmd.PersistentFlags().Uint64VarP(&serverPort, "server_port", "p", 10222, "Define REST Port")
+	runCmd.PersistentFlags().StringSliceVarP(&set, "set", "e", nil, "Define opentelemetry set")
+	runCmd.PersistentFlags().StringVarP(&featureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
 
 	rootCmd.AddCommand(runCmd)
 	if err := rootCmd.Execute(); err != nil {

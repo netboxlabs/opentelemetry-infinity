@@ -17,12 +17,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type ReturnPolicyData struct {
+type returnPolicyData struct {
 	State runner.State `yaml:"status"`
 	config.Policy
 }
 
-type ReturnValue struct {
+type returnValue struct {
 	Message string `json:"message"`
 }
 
@@ -63,13 +63,13 @@ func (o *OltpInf) getStatus(c *gin.Context) {
 func (o *OltpInf) getCapabilities(c *gin.Context) {
 	j, err := yson.YAMLToJSON(o.capabilities)
 	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
 	var ret interface{}
 	err = json.Unmarshal(j, &ret)
 	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, ret)
@@ -87,29 +87,29 @@ func (o *OltpInf) getPolicy(c *gin.Context) {
 	policy := c.Param("policy")
 	rInfo, ok := o.policies[policy]
 	if ok {
-		c.YAML(http.StatusOK, map[string]ReturnPolicyData{policy: {rInfo.Instance.GetStatus(), rInfo.Policy}})
+		c.YAML(http.StatusOK, map[string]returnPolicyData{policy: {rInfo.Instance.GetStatus(), rInfo.Policy}})
 	} else {
-		c.IndentedJSON(http.StatusNotFound, ReturnValue{"policy not found"})
+		c.IndentedJSON(http.StatusNotFound, returnValue{"policy not found"})
 	}
 }
 
 func (o *OltpInf) createPolicy(c *gin.Context) {
 	if t := c.Request.Header.Get("Content-type"); t != "application/x-yaml" {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{"invalid Content-Type. Only 'application/x-yaml' is supported"})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{"invalid Content-Type. Only 'application/x-yaml' is supported"})
 		return
 	}
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
 	var payload map[string]config.Policy
 	if err = yaml.Unmarshal(body, &payload); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
 	if len(payload) > 1 {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{"only single policy allowed per request"})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{"only single policy allowed per request"})
 		return
 	}
 	var policy string
@@ -117,7 +117,7 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 	for policy, data = range payload {
 		_, ok := o.policies[policy]
 		if ok {
-			c.IndentedJSON(http.StatusConflict, ReturnValue{"policy already exists"})
+			c.IndentedJSON(http.StatusConflict, returnValue{"policy already exists"})
 			return
 
 		}
@@ -125,16 +125,16 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 
 	r := runner.New(o.logger, policy, o.policiesDir, o.conf)
 	if err := r.Configure(&data); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
-	runnerCtx := context.WithValue(o.ctx, "routine", policy)
+	runnerCtx := context.WithValue(o.ctx, routineKey, policy)
 	if err := r.Start(context.WithCancel(runnerCtx)); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, ReturnValue{err.Error()})
+		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
 	o.policies[policy] = RunnerInfo{Policy: data, Instance: r}
-	c.YAML(http.StatusCreated, map[string]ReturnPolicyData{policy: {r.GetStatus(), data}})
+	c.YAML(http.StatusCreated, map[string]returnPolicyData{policy: {r.GetStatus(), data}})
 }
 
 func (o *OltpInf) deletePolicy(c *gin.Context) {
@@ -143,8 +143,8 @@ func (o *OltpInf) deletePolicy(c *gin.Context) {
 	if ok {
 		r.Instance.Stop(o.ctx)
 		delete(o.policies, policy)
-		c.IndentedJSON(http.StatusOK, ReturnValue{policy + " was deleted"})
+		c.IndentedJSON(http.StatusOK, returnValue{policy + " was deleted"})
 	} else {
-		c.IndentedJSON(http.StatusNotFound, ReturnValue{"policy not found"})
+		c.IndentedJSON(http.StatusNotFound, returnValue{"policy not found"})
 	}
 }

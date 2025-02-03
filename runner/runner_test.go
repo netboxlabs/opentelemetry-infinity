@@ -172,8 +172,8 @@ func TestRunnerStartStop(t *testing.T) {
 	runner.Stop(ctx)
 
 	s := runner.GetStatus()
-	if MapStatus[s.Status] != "offline" {
-		t.Errorf("Expected status to be offline, but got %v", MapStatus[s.Status])
+	if mapStatus[s.Status] != "offline" {
+		t.Errorf("Expected status to be offline, but got %v", mapStatus[s.Status])
 	}
 }
 

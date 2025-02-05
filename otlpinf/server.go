@@ -104,7 +104,7 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 		return
 	}
 
-	for policy, _ := range payload {
+	for policy := range payload {
 		_, ok := o.policies[policy]
 		if ok {
 			c.IndentedJSON(http.StatusConflict, returnValue{"policy '" + policy + "' already exists"})

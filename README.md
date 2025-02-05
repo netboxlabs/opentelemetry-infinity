@@ -49,11 +49,13 @@ Usage:
   opentelemetry-infinity run [flags]
 
 Flags:
-  -d, --debug                Enable verbose (debug level) output
-  -h, --help                 help for run
-  -s, --self_telemetry       Enable self telemetry for collectors. It is disabled by default to avoid port conflict
-  -a, --server_host string   Define REST Host (default "localhost")
-  -p, --server_port uint     Define REST Port (default 10222)
+  -d, --debug                  Enable verbose (debug level) output
+  -f, --feature_gates string   Define opentelemetry feature gates
+  -h, --help                   help for run
+  -s, --self_telemetry         Enable self telemetry for collectors. It is disabled by default to avoid port conflict
+  -a, --server_host string     Define REST Host (default "localhost")
+  -p, --server_port uint       Define REST Port (default 10222)
+  -e, --set strings            Define opentelemetry set
 ```
 
 
@@ -216,27 +218,20 @@ docker run --net=host netboxlabs/opentelemetry-infinity run -a {host} -p {port}
 
 ```yaml
 my_policy:
-  #Optional
-  #feature_gates:
-  #Optional
-  set:
-    processors.batch.timeout: 2s
-  #Required: Same configuration that you would use inside the config file passed to a otel-collector
-  config:
-    receivers:
-      otlp:
-        protocols:
-          http:
-          grpc: 
- 
-    exporters:
-      debug:
-      
-    service:
-      pipelines:
-        metrics:
-          receivers:
-          - otlp
-          exporters:
-          - debug
+  receivers:
+    otlp:
+      protocols:
+        http:
+        grpc:
+
+  exporters:
+    debug:
+
+  service:
+    pipelines:
+      metrics:
+        receivers:
+        - otlp
+        exporters:
+        - debug
 ```

@@ -103,33 +103,48 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 		return
 	}
-	if len(payload) > 1 {
-		c.IndentedJSON(http.StatusBadRequest, returnValue{"only single policy allowed per request"})
-		return
-	}
-	var policy string
-	var data config.Policy
-	for policy, data = range payload {
+
+	for policy, _ := range payload {
 		_, ok := o.policies[policy]
 		if ok {
-			c.IndentedJSON(http.StatusConflict, returnValue{"policy already exists"})
+			c.IndentedJSON(http.StatusConflict, returnValue{"policy '" + policy + "' already exists"})
 			return
 
 		}
 	}
 
-	r := runner.NewRunner(o.logger, policy, o.policiesDir, o.conf)
-	if err := r.Configure(&data); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
-		return
+	var newPolicies []string
+	newPolicyData := make(map[string]returnPolicyData)
+	for policy, data := range payload {
+		r := runner.NewRunner(o.logger, policy, o.policiesDir, o.conf)
+		if err := r.Configure(&data); err != nil {
+			for _, p := range newPolicies {
+				r, ok := o.policies[p]
+				if ok {
+					r.Instance.Stop(o.ctx)
+					delete(o.policies, policy)
+				}
+			}
+			c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
+			return
+		}
+		runnerCtx := context.WithValue(o.ctx, routineKey, policy)
+		if err := r.Start(context.WithCancel(runnerCtx)); err != nil {
+			for _, p := range newPolicies {
+				r, ok := o.policies[p]
+				if ok {
+					r.Instance.Stop(o.ctx)
+					delete(o.policies, policy)
+				}
+			}
+			c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
+			return
+		}
+		o.policies[policy] = RunnerInfo{Policy: data, Instance: r}
+		newPolicies = append(newPolicies, policy)
+		newPolicyData[policy] = returnPolicyData{r.GetStatus(), data}
 	}
-	runnerCtx := context.WithValue(o.ctx, routineKey, policy)
-	if err := r.Start(context.WithCancel(runnerCtx)); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
-		return
-	}
-	o.policies[policy] = RunnerInfo{Policy: data, Instance: r}
-	c.YAML(http.StatusCreated, map[string]returnPolicyData{policy: {r.GetStatus(), data}})
+	c.YAML(http.StatusCreated, newPolicyData)
 }
 
 func (o *OltpInf) deletePolicy(c *gin.Context) {

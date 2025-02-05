@@ -122,7 +122,9 @@ func (r *Runner) Configure(c *config.Policy) error {
 	}
 
 	if len(r.sets) > 0 {
-		r.options = append(r.options, r.sets...)
+		for _, set := range r.sets {
+			r.options = append(r.options, "--set="+set)
+		}
 	}
 
 	return nil

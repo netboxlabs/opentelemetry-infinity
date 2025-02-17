@@ -40,10 +40,10 @@ jobs:
           RELEASE: ${{needs.check.outputs.release}}
         run: |
           echo "LAST_TAG=`git tag --sort=committerdate | tail -1`" >> $GITHUB_ENV
-          echo "TAG=$RELEASE" >> $GITHUB_ENV
-
-          echo "ARTIFACT_VERSION=${RELEASE:1}" >> $GITHUB_ENV
-          ARTIFACT="otelcol-contrib_${ARTIFACT_VERSION}_linux_amd64.tar.gz"
+          ARTIFACT_VERSION=${RELEASE:1}
+          echo "ARTIFACT_VERSION=ARTIFACT_VERSION" >> $GITHUB_ENV
+          
+          ARTIFACT="otelcol-contrib_${{ env.ARTIFACT_VERSION }}_linux_amd64.tar.gz"
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
           
           mkdir .temp/
@@ -88,7 +88,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.TAG }}
+          tag_name: ${{ env.RELEASE }}
           body_path: ./changelog.md
           files: |
             otlpinf-amd64.zip
@@ -118,4 +118,4 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             netboxlabs/opentelemetry-infinity:latest
-            netboxlabs/opentelemetry-infinity:${{ env.TAG }}
+            netboxlabs/opentelemetry-infinity:${{ env.RELEASE }}

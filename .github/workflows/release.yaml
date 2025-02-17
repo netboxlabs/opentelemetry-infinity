@@ -1,7 +1,5 @@
 name: otlpinf-release
 on:
-  pull_request:
-    branches: [ "main" ]
   push:
     branches: [ "main" ]
   schedule:

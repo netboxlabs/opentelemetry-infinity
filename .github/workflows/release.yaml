@@ -71,8 +71,11 @@ jobs:
           zip -j otelcol-contrib-amd64.zip runner/otelcol-contrib
 
       - name: Download and zip arm64
+        env:
+          RELEASE: ${{needs.check.outputs.release}}
+          ARTIFACT_VERSION: ${{ env.ARTIFACT_VERSION }}
         run: |
-          ARTIFACT="otelcol-contrib_${{ env.ARTIFACT_VERSION }}_linux_arm64.tar.gz"
+          ARTIFACT="otelcol-contrib_${ARTIFACT_VERSION}_linux_arm64.tar.gz"
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
           mkdir .temp/
           wget -O .temp/otelcol-contrib.tar.gz $ARTIFACT_URL
@@ -82,6 +85,8 @@ jobs:
           rm -rf .temp/
 
       - name: Generate release changelog
+        env:
+          LAST_TAG: ${{ env.LAST_TAG }}
         run: |
           echo "# What's new" > changelog.md
           git log ${{ env.LAST_TAG }}..HEAD --pretty=format:"$ad- %s [%an]" >> changelog.md
@@ -89,8 +94,10 @@ jobs:
 
       - name: Release
         uses: softprops/action-gh-release@v1
+        env:
+          TAG: ${{needs.check.outputs.release}}
         with:
-          tag_name: ${{ env.RELEASE }}
+          tag_name: ${{ env.TAG }}
           body_path: ./changelog.md
           files: |
             otlpinf-amd64.zip
@@ -111,6 +118,8 @@ jobs:
 
       - name: Build image and push
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 #v6.10.0
+        env:
+          TAG: ${{needs.check.outputs.release}}
         with:
           context: .
           file: docker/Dockerfile
@@ -120,4 +129,4 @@ jobs:
           cache-to: type=gha,mode=max
           tags: |
             netboxlabs/opentelemetry-infinity:latest
-            netboxlabs/opentelemetry-infinity:${{ env.RELEASE }}
+            netboxlabs/opentelemetry-infinity:${{ env.TAG }}

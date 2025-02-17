@@ -1,5 +1,7 @@
 name: otlpinf-release
 on:
+  pull_request:
+    branches: [ "main" ]
   push:
     branches: [ "main" ]
   schedule:
@@ -43,7 +45,7 @@ jobs:
           ARTIFACT_VERSION=${RELEASE:1}
           echo "ARTIFACT_VERSION=ARTIFACT_VERSION" >> $GITHUB_ENV
           
-          ARTIFACT="otelcol-contrib_${{ env.ARTIFACT_VERSION }}_linux_amd64.tar.gz"
+          ARTIFACT="otelcol-contrib_${ARTIFACT_VERSION}_linux_amd64.tar.gz"
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
           
           mkdir .temp/

@@ -43,7 +43,7 @@ jobs:
         run: |
           echo "LAST_TAG=`git tag --sort=committerdate | tail -1`" >> $GITHUB_ENV
           ARTIFACT_VERSION=${RELEASE:1}
-          echo "ARTIFACT_VERSION=ARTIFACT_VERSION" >> $GITHUB_ENV
+          echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
           
           ARTIFACT="otelcol-contrib_${ARTIFACT_VERSION}_linux_amd64.tar.gz"
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"

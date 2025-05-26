@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/amenzhinsky/go-memexec v0.7.1
 	github.com/ghodss/yaml v1.0.0
-	github.com/gin-gonic/gin v1.10.0
+	github.com/gin-gonic/gin v1.10.1
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1

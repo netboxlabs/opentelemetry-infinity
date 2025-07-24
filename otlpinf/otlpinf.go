@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
+
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/runner"
-	"gopkg.in/yaml.v3"
 )
 
 const routineKey config.ContextKey = "routine"

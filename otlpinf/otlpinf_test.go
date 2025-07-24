@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
+
+	"github.com/netboxlabs/opentelemetry-infinity/config"
 )
 
 const (

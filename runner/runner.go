@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/amenzhinsky/go-memexec"
-	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"gopkg.in/yaml.v3"
+
+	"github.com/netboxlabs/opentelemetry-infinity/config"
 )
 
 //go:embed otelcol-contrib

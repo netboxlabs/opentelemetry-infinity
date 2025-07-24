@@ -7,9 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+
 	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"github.com/netboxlabs/opentelemetry-infinity/otlpinf"
-	"github.com/spf13/cobra"
 )
 
 const routineKey config.ContextKey = "routine"

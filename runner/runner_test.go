@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/netboxlabs/opentelemetry-infinity/config"
 	"gopkg.in/yaml.v3"
+
+	"github.com/netboxlabs/opentelemetry-infinity/config"
 )
 
 const (

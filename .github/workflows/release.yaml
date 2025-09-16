@@ -126,5 +126,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
+            netboxlabs/opentelemetry-infinity:develop
             netboxlabs/opentelemetry-infinity:latest
             netboxlabs/opentelemetry-infinity:${{ env.TAG }}

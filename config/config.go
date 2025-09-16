@@ -29,4 +29,5 @@ type Config struct {
 	ServerPort    uint64   `mapstructure:"otlpinf_server_port"`
 	FeatureGates  string   `mapstructure:"feature_gates"`
 	Set           []string `mapstructure:"set"`
+	LogTimestamp  bool     `mapstructure:"otlpinf_log_timestamp"`
 }

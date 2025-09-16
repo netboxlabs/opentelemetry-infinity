@@ -22,6 +22,7 @@ var (
 	serverPort    uint64
 	set           []string
 	featureGates  string
+	logTimestamp  bool
 )
 
 func run(_ *cobra.Command, _ []string) {
@@ -32,6 +33,7 @@ func run(_ *cobra.Command, _ []string) {
 		ServerPort:    serverPort,
 		Set:           set,
 		FeatureGates:  featureGates,
+		LogTimestamp:  logTimestamp,
 	}
 	// logger
 	var logger *slog.Logger
@@ -39,7 +41,16 @@ func run(_ *cobra.Command, _ []string) {
 	if debug {
 		level = slog.LevelDebug
 	}
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	handlerOpts := &slog.HandlerOptions{Level: level}
+	if !logTimestamp {
+		handlerOpts.ReplaceAttr = func(_ []string, attr slog.Attr) slog.Attr {
+			if attr.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return attr
+		}
+	}
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, handlerOpts))
 
 	// new otlpinf
 	a := otlpinf.NewOtlp(logger, &config)
@@ -93,6 +104,7 @@ func main() {
 	runCmd.PersistentFlags().Uint64VarP(&serverPort, "server_port", "p", 10222, "Define REST Port")
 	runCmd.PersistentFlags().StringSliceVarP(&set, "set", "e", nil, "Define opentelemetry set")
 	runCmd.PersistentFlags().StringVarP(&featureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
+	runCmd.PersistentFlags().BoolVar(&logTimestamp, "log_timestamp", true, "Include timestamps in logs")
 
 	rootCmd.AddCommand(runCmd)
 	if err := rootCmd.Execute(); err != nil {

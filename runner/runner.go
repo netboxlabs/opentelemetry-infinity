@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/amenzhinsky/go-memexec"
@@ -157,8 +159,14 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			r.state.LastLog = scanner.Text()
-			r.logger.Info("otelcol-contrib", slog.String("policy", r.policyName), slog.String("log", r.state.LastLog))
+			line := scanner.Text()
+			r.state.LastLog = line
+			attrs := append([]slog.Attr{slog.String("policy", r.policyName)}, parseCollectorLog(line)...)
+			args := make([]any, len(attrs))
+			for i, attr := range attrs {
+				args[i] = attr
+			}
+			r.logger.Info("otelcol-contrib", args...)
 			if r.cmd.Err != nil {
 				r.errChan <- r.state.LastLog
 			}
@@ -219,4 +227,62 @@ func (r *Runner) GetStatus() State {
 func (r *Runner) setStatus(s status) {
 	r.state.Status = s
 	r.state.StatusText = mapStatus[s]
+}
+
+func parseCollectorLog(line string) []slog.Attr {
+	if line == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(line, "\t", 5)
+	if len(parts) == 1 {
+		return []slog.Attr{slog.String("log", line)}
+	}
+
+	attrs := make([]slog.Attr, 0, len(parts))
+
+	if ts := strings.TrimSpace(parts[0]); ts != "" {
+		attrs = append(attrs, slog.String("collector_timestamp", ts))
+	}
+
+	if len(parts) > 1 {
+		if lvl := strings.TrimSpace(parts[1]); lvl != "" {
+			attrs = append(attrs, slog.String("collector_level", lvl))
+		}
+	}
+
+	if len(parts) > 2 {
+		if src := strings.TrimSpace(parts[2]); src != "" {
+			attrs = append(attrs, slog.String("collector_source", src))
+		}
+	}
+
+	if len(parts) > 3 {
+		if msg := strings.TrimSpace(parts[3]); msg != "" {
+			var structured any
+			if err := json.Unmarshal([]byte(msg), &structured); err == nil {
+				attrs = append(attrs, slog.Any("collector_message", structured))
+			} else {
+				attrs = append(attrs, slog.String("collector_message", msg))
+			}
+		}
+	}
+
+	if len(parts) > 4 {
+		payload := strings.TrimSpace(parts[4])
+		if payload != "" {
+			var structured any
+			if err := json.Unmarshal([]byte(payload), &structured); err == nil {
+				attrs = append(attrs, slog.Any("collector_payload", structured))
+			} else {
+				attrs = append(attrs, slog.String("collector_payload", payload))
+			}
+		}
+	}
+
+	if len(attrs) == 0 {
+		return []slog.Attr{slog.String("log", line)}
+	}
+
+	return attrs
 }

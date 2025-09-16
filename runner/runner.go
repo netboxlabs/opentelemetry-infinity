@@ -250,13 +250,11 @@ func parseCollectorLog(line string) []slog.Attr {
 			attrs = append(attrs, slog.String("collector_level", lvl))
 		}
 	}
-
 	if len(parts) > 2 {
 		if src := strings.TrimSpace(parts[2]); src != "" {
 			attrs = append(attrs, slog.String("collector_source", src))
 		}
 	}
-
 	if len(parts) > 3 {
 		if msg := strings.TrimSpace(parts[3]); msg != "" {
 			var structured any
@@ -267,7 +265,6 @@ func parseCollectorLog(line string) []slog.Attr {
 			}
 		}
 	}
-
 	if len(parts) > 4 {
 		payload := strings.TrimSpace(parts[4])
 		if payload != "" {

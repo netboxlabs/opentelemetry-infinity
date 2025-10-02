@@ -3,9 +3,10 @@ package otlpinf
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	yson "github.com/ghodss/yaml"
@@ -38,17 +39,29 @@ func (o *OltpInf) setupRouter() {
 	o.router.DELETE("/api/v1/policies/:policy", o.deletePolicy)
 }
 
-func (o *OltpInf) startServer() {
+func (o *OltpInf) startServer() <-chan error {
 	o.setupRouter()
-	serverHost := o.conf.ServerHost
-	serverPort := strconv.FormatUint(o.conf.ServerPort, 10)
+	serverAddr := fmt.Sprintf("%s:%d", o.conf.ServerHost, o.conf.ServerPort)
+	errCh := make(chan error, 1)
+
+	o.httpServer = &http.Server{
+		Addr:    serverAddr,
+		Handler: o.router,
+	}
+
 	go func() {
-		serv := serverHost + ":" + serverPort
-		o.logger.Info("starting otlp_inf server at: " + serv)
-		if err := o.router.Run(serv); err != nil {
-			o.logger.Error("shutting down the server", "error", err)
+		o.logger.Info("starting otlp_inf server", "address", serverAddr)
+		if err := o.httpServer.ListenAndServe(); err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				close(errCh)
+				return
+			}
+			errCh <- err
 		}
+		close(errCh)
 	}()
+
+	return errCh
 }
 
 func (o *OltpInf) getStatus(c *gin.Context) {

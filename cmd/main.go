@@ -77,11 +77,39 @@ func run(_ *cobra.Command, _ []string) {
 	}()
 
 	// start otlpinf
-	err := a.Start(rootCtx, cancelFunc)
-	if err != nil {
-		logger.Error("otlpinf startup error", "error", err)
+	serverErrCh := a.Start(rootCtx, cancelFunc)
+
+	if serverErrCh == nil {
+		logger.Error("otlpinf startup error", "error", "start returned nil channel")
 		os.Exit(1)
 	}
+
+	var startErr error
+	select {
+	case err, ok := <-serverErrCh:
+		if !ok {
+			logger.Error("otlpinf startup error", "error", "server channel closed during startup")
+			os.Exit(1)
+		}
+		startErr = err
+	default:
+	}
+
+	if startErr != nil {
+		logger.Error("otlpinf startup error", "error", startErr)
+		os.Exit(1)
+	}
+
+	go func() {
+		for err := range serverErrCh {
+			if err == nil {
+				continue
+			}
+			logger.Error("otlpinf server encountered an error", "error", err)
+			a.Stop(rootCtx)
+			return
+		}
+	}()
 
 	<-done
 }

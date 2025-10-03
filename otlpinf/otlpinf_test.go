@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
@@ -95,8 +96,27 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := otlp.Start(ctx, cancel)
-	assert.NoError(t, err)
+	t.Cleanup(cancel)
+
+	serverErrCh := otlp.Start(ctx, cancel)
+	require.NotNil(t, serverErrCh)
+
+	select {
+	case err, ok := <-serverErrCh:
+		if ok && err != nil {
+			t.Fatalf("failed to start server: %v", err)
+		}
+	default:
+	}
+
+	t.Cleanup(func() {
+		otlp.Stop(ctx)
+		for err := range serverErrCh {
+			if err != nil {
+				t.Logf("server returned error: %v", err)
+			}
+		}
+	})
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -126,7 +146,10 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 			},
 		},
 	}
-	var buf bytes.Buffer
+	var (
+		buf bytes.Buffer
+		err error
+	)
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
@@ -175,8 +198,6 @@ func TestOtlpinfCreateDeletePolicy(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	err = resp.Body.Close()
 	assert.NoError(t, err)
-
-	otlp.Stop(ctx)
 }
 
 func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
@@ -194,8 +215,27 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := otlp.Start(ctx, cancel)
-	assert.NoError(t, err)
+	t.Cleanup(cancel)
+
+	serverErrCh := otlp.Start(ctx, cancel)
+	require.NotNil(t, serverErrCh)
+
+	select {
+	case err, ok := <-serverErrCh:
+		if ok && err != nil {
+			t.Fatalf("failed to start server: %v", err)
+		}
+	default:
+	}
+
+	t.Cleanup(func() {
+		otlp.Stop(ctx)
+		for err := range serverErrCh {
+			if err != nil {
+				t.Logf("server returned error: %v", err)
+			}
+		}
+	})
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -207,7 +247,10 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 			"feature_gates": []string{"all"},
 		},
 	}
-	var buf bytes.Buffer
+	var (
+		buf bytes.Buffer
+		err error
+	)
 	err = yaml.NewEncoder(&buf).Encode(data)
 	assert.NoError(t, err)
 
@@ -257,8 +300,6 @@ func TestOtlpinfCreateInvalidPolicy(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	err = resp.Body.Close()
 	assert.NoError(t, err)
-
-	otlp.Stop(ctx)
 }
 
 func TestOtlpinfStartError(t *testing.T) {
@@ -278,8 +319,15 @@ func TestOtlpinfStartError(t *testing.T) {
 	otlp := NewOtlp(logger, &cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = otlp.Start(ctx, cancel)
+	serverErrCh := otlp.Start(ctx, cancel)
+	require.NotNil(t, serverErrCh)
+
+	err, ok := <-serverErrCh
+	require.True(t, ok)
 	assert.Error(t, err)
+
+	_, ok = <-serverErrCh
+	assert.False(t, ok)
 
 	if !strings.Contains(err.Error(), "invalid/prefix") {
 		t.Errorf("Expected an 'invalid/prefix' error, but got: %s", err.Error())

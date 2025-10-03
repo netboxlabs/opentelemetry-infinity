@@ -2,7 +2,9 @@ package otlpinf
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -32,6 +34,7 @@ type OltpInf struct {
 	cancelFunction context.CancelFunc
 	router         *gin.Engine
 	capabilities   []byte
+	httpServer     *http.Server
 }
 
 // NewOtlp creates a new otlpinf routine
@@ -40,7 +43,7 @@ func NewOtlp(logger *slog.Logger, c *config.Config) *OltpInf {
 }
 
 // Start starts the otlpinf routine
-func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) error {
+func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) <-chan error {
 	o.stat.StartTime = time.Now()
 	o.ctx = context.WithValue(ctx, routineKey, "otlpInfRoutine")
 	o.cancelFunction = cancelFunc
@@ -48,11 +51,11 @@ func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) erro
 	var err error
 	o.policiesDir, err = os.MkdirTemp("", "policies")
 	if err != nil {
-		return err
+		return o.startFailure(err)
 	}
 	o.capabilities, err = runner.GetCapabilities(o.logger)
 	if err != nil {
-		return err
+		return o.startFailure(err)
 	}
 	s := struct {
 		Buildinfo struct {
@@ -61,22 +64,44 @@ func (o *OltpInf) Start(ctx context.Context, cancelFunc context.CancelFunc) erro
 	}{}
 	err = yaml.Unmarshal(o.capabilities, &s)
 	if err != nil {
-		return err
+		return o.startFailure(err)
 	}
 	o.stat.Version = s.Buildinfo.Version
 
-	o.startServer()
-
-	return nil
+	return o.startServer()
 }
 
 // Stop stops the otlpinf routine
-func (o *OltpInf) Stop(ctx context.Context) {
-	o.logger.Info("routine call for stop otlpinf", slog.Any("routine", ctx.Value("routine")))
-	defer func() {
+func (o *OltpInf) Stop(_ context.Context) {
+	if o.httpServer != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := o.httpServer.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			o.logger.Error("error shutting down HTTP server", "error", err)
+		}
+		o.httpServer = nil
+	}
+	if o.policiesDir != "" {
 		if err := os.RemoveAll(o.policiesDir); err != nil {
 			o.logger.Error("error removing policies directory", "error", err)
 		}
-	}()
-	defer o.cancelFunction()
+		o.policiesDir = ""
+	}
+	if o.cancelFunction != nil {
+		o.cancelFunction()
+	}
+}
+
+func (o *OltpInf) startFailure(err error) <-chan error {
+	if o.policiesDir != "" {
+		if rmErr := os.RemoveAll(o.policiesDir); rmErr != nil {
+			o.logger.Error("error removing policies directory", "error", rmErr)
+		}
+		o.policiesDir = ""
+	}
+	errCh := make(chan error, 1)
+	errCh <- err
+	close(errCh)
+	return errCh
 }

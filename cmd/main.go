@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -15,7 +16,7 @@ import (
 
 const routineKey config.ContextKey = "routine"
 
-var (
+type runOptions struct {
 	debug         bool
 	selfTelemetry bool
 	serverHost    string
@@ -23,26 +24,61 @@ var (
 	set           []string
 	featureGates  string
 	logTimestamp  bool
-)
+}
 
-func run(_ *cobra.Command, _ []string) {
-	config := config.Config{
-		Debug:         debug,
-		SelfTelemetry: selfTelemetry,
-		ServerHost:    serverHost,
-		ServerPort:    serverPort,
-		Set:           set,
-		FeatureGates:  featureGates,
-		LogTimestamp:  logTimestamp,
+var runOpts runOptions
+
+func run(_ *cobra.Command, _ []string) error {
+	cfg := buildConfig(runOpts)
+	logger := newLogger(runOpts)
+
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	ctx := context.WithValue(signalCtx, routineKey, "mainRoutine")
+
+	app := otlpinf.NewOtlp(logger, &cfg)
+	serverErrCh := app.Start(ctx, stop)
+	if serverErrCh == nil {
+		err := errors.New("start returned nil channel")
+		logger.Error("otlpinf startup error", "error", err)
+		return err
 	}
-	// logger
-	var logger *slog.Logger
+
+	if err := checkStartup(serverErrCh); err != nil {
+		logger.Error("otlpinf startup error", "error", err)
+		app.Stop(ctx)
+		return err
+	}
+
+	go monitorServerErrors(serverErrCh, logger, stop)
+
+	<-ctx.Done()
+	logger.Warn("mainRoutine context cancelled")
+	app.Stop(ctx)
+	return nil
+}
+
+func buildConfig(opts runOptions) config.Config {
+	return config.Config{
+		Debug:         opts.debug,
+		SelfTelemetry: opts.selfTelemetry,
+		ServerHost:    opts.serverHost,
+		ServerPort:    opts.serverPort,
+		Set:           opts.set,
+		FeatureGates:  opts.featureGates,
+		LogTimestamp:  opts.logTimestamp,
+	}
+}
+
+func newLogger(opts runOptions) *slog.Logger {
 	level := slog.LevelInfo
-	if debug {
+	if opts.debug {
 		level = slog.LevelDebug
 	}
+
 	handlerOpts := &slog.HandlerOptions{Level: level}
-	if !logTimestamp {
+	if !opts.logTimestamp {
 		handlerOpts.ReplaceAttr = func(_ []string, attr slog.Attr) slog.Attr {
 			if attr.Key == slog.TimeKey {
 				return slog.Attr{}
@@ -50,68 +86,31 @@ func run(_ *cobra.Command, _ []string) {
 			return attr
 		}
 	}
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, handlerOpts))
 
-	// new otlpinf
-	a := otlpinf.NewOtlp(logger, &config)
+	return slog.New(slog.NewJSONHandler(os.Stdout, handlerOpts))
+}
 
-	// handle signals
-	done := make(chan bool, 1)
-	rootCtx, cancelFunc := context.WithCancel(context.WithValue(context.Background(), routineKey, "mainRoutine"))
-
-	go func() {
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		for {
-			select {
-			case <-sigs:
-				logger.Warn("stop signal received, stopping otlpinf")
-				a.Stop(rootCtx)
-				cancelFunc()
-			case <-rootCtx.Done():
-				logger.Warn("mainRoutine context cancelled")
-				done <- true
-				return
-			}
-		}
-	}()
-
-	// start otlpinf
-	serverErrCh := a.Start(rootCtx, cancelFunc)
-
-	if serverErrCh == nil {
-		logger.Error("otlpinf startup error", "error", "start returned nil channel")
-		os.Exit(1)
-	}
-
-	var startErr error
+func checkStartup(serverErrCh <-chan error) error {
 	select {
 	case err, ok := <-serverErrCh:
 		if !ok {
-			logger.Error("otlpinf startup error", "error", "server channel closed during startup")
-			os.Exit(1)
+			return errors.New("server channel closed during startup")
 		}
-		startErr = err
+		return err
 	default:
+		return nil
 	}
+}
 
-	if startErr != nil {
-		logger.Error("otlpinf startup error", "error", startErr)
-		os.Exit(1)
-	}
-
-	go func() {
-		for err := range serverErrCh {
-			if err == nil {
-				continue
-			}
-			logger.Error("otlpinf server encountered an error", "error", err)
-			a.Stop(rootCtx)
-			return
+func monitorServerErrors(errCh <-chan error, logger *slog.Logger, cancel context.CancelFunc) {
+	for err := range errCh {
+		if err == nil {
+			continue
 		}
-	}()
-
-	<-done
+		logger.Error("otlpinf server encountered an error", "error", err)
+		cancel()
+		return
+	}
 }
 
 func main() {
@@ -123,16 +122,16 @@ func main() {
 		Use:   "run",
 		Short: "Run opentelemetry-infinity",
 		Long:  `Run opentelemetry-infinity`,
-		Run:   run,
+		RunE:  run,
 	}
 
-	runCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable verbose (debug level) output")
-	runCmd.PersistentFlags().BoolVarP(&selfTelemetry, "self_telemetry", "s", false, "Enable self telemetry for collectors. It is disabled by default to avoid port conflict")
-	runCmd.PersistentFlags().StringVarP(&serverHost, "server_host", "a", "localhost", "Define REST Host")
-	runCmd.PersistentFlags().Uint64VarP(&serverPort, "server_port", "p", 10222, "Define REST Port")
-	runCmd.PersistentFlags().StringSliceVarP(&set, "set", "e", nil, "Define opentelemetry set")
-	runCmd.PersistentFlags().StringVarP(&featureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
-	runCmd.PersistentFlags().BoolVar(&logTimestamp, "log_timestamp", true, "Include timestamps in logs")
+	runCmd.PersistentFlags().BoolVarP(&runOpts.debug, "debug", "d", false, "Enable verbose (debug level) output")
+	runCmd.PersistentFlags().BoolVarP(&runOpts.selfTelemetry, "self_telemetry", "s", false, "Enable self telemetry for collectors. It is disabled by default to avoid port conflict")
+	runCmd.PersistentFlags().StringVarP(&runOpts.serverHost, "server_host", "a", "localhost", "Define REST Host")
+	runCmd.PersistentFlags().Uint64VarP(&runOpts.serverPort, "server_port", "p", 10222, "Define REST Port")
+	runCmd.PersistentFlags().StringSliceVarP(&runOpts.set, "set", "e", nil, "Define opentelemetry set")
+	runCmd.PersistentFlags().StringVarP(&runOpts.featureGates, "feature_gates", "f", "", "Define opentelemetry feature gates")
+	runCmd.PersistentFlags().BoolVar(&runOpts.logTimestamp, "log_timestamp", true, "Include timestamps in logs")
 
 	rootCmd.AddCommand(runCmd)
 	if err := rootCmd.Execute(); err != nil {

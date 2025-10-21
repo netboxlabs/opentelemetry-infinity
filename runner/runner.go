@@ -160,6 +160,9 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
+			if shouldSuppressCollectorLog(line) {
+				continue
+			}
 			r.state.LastLog = line
 			msg, level, attrs := parseCollectorLog(line)
 			attrs = append([]slog.Attr{slog.String("policy", r.policyName)}, attrs...)
@@ -274,6 +277,21 @@ func parseCollectorLog(line string) (string, slog.Level, []slog.Attr) {
 	}
 
 	return strings.TrimSpace(msg), level, attrs
+}
+
+func shouldSuppressCollectorLog(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+
+	// Filter noisy collector warnings emitted when using memexec on some platforms.
+	switch {
+	case strings.Contains(trimmed, "Failed to get executable path: lstat /memfd"):
+		return true
+	default:
+		return false
+	}
 }
 
 func mapCollectorLevel(level string) slog.Level {

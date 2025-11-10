@@ -16,7 +16,7 @@ getotelcol:
 
 .PHONY: build
 build:
-	CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GOARCH=$(GOARCH) GOARM=$(GOARM) go build -o ${BUILD_DIR}/otlpinf cmd/main.go
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=linux GOARCH=$(GOARCH) GOARM=$(GOARM) go build -ldflags="-s -w" -trimpath -o ${BUILD_DIR}/otlpinf cmd/main.go
 
 test:
 	go test -v ./...

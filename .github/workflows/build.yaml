@@ -88,7 +88,7 @@ jobs:
             ${{ steps.go-test.outputs.coverage-report }}
             Total coverage: ${{ steps.go-test.outputs.coverage-total }}%
           edit-mode: replace
-          
+
   package:
     if: ${{ github.event_name != 'pull_request' }}
     needs: [ test ]

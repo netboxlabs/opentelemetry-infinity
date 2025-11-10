@@ -5,9 +5,10 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /go/src/github.com/netboxlabs/opentelemetry-infinity
 COPY . .
-RUN apk update && apk add build-base curl dpkg-dev make
+RUN apk update && apk add build-base curl dpkg-dev make upx
 RUN if [ ! -f "runner/otelcol-contrib" ] ; then make getotelcol ; fi
 RUN make build && mv build/otlpinf /exe
+RUN upx /exe
 
 FROM alpine:3
 

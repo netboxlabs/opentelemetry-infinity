@@ -5,12 +5,11 @@ GOARCH ?= $(shell go env GOARCH)
 GOOS ?= $(shell go env GOOS)
 DOCKERHUB_REPO = netboxlabs
 COMMIT_HASH = $(shell git rev-parse --short HEAD)
-INF_LATEST_RELEASE := $(shell curl -L -s -H 'Accept: application/json' https://github.com/netboxlabs/opentelemetry-infinity/releases/latest)
-INF_LATEST_VERSION := $(shell echo $(INF_LATEST_RELEASE) | sed -e 's/.*tag_name:\([^,]*\).*/\1/')
+INF_LATEST_VERSION := $(shell curl -L -s -H 'Accept: application/json' https://github.com/netboxlabs/opentelemetry-infinity/releases/latest | sed -E 's/.*"tag_name":"([^"]*)".*/\1/')
 
 getotelcol:
-	wget -O /tmp/otelcol-contrib-$(GOARCH)$(GOARM).zip https://github.com/netboxlabs/opentelemetry-infinity/releases/download/$(INF_LATEST_VERSION)/otelcol-contrib-$(GOARCH)$(GOARM).zip
-	unzip /tmp/otelcol-contrib-$(GOARCH)$(GOARM).zip -d /tmp/
+	curl -L -o /tmp/otelcol-contrib-$(GOARCH)$(GOARM).zip https://github.com/netboxlabs/opentelemetry-infinity/releases/download/$(INF_LATEST_VERSION)/otelcol-contrib-$(GOARCH)$(GOARM).zip
+	unzip -q /tmp/otelcol-contrib-$(GOARCH)$(GOARM).zip -d /tmp/
 	mv /tmp/otelcol-contrib runner/otelcol-contrib
 	rm -rf /tmp/otelcol-contrib*
 

@@ -12,7 +12,7 @@ RUN upx /exe
 
 FROM alpine:3
 
-RUN mkdir /opt/otlpinf/
+RUN apk update && apk upgrade --no-cache && mkdir /opt/otlpinf/
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /exe /

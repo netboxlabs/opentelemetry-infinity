@@ -69,7 +69,7 @@ jobs:
           zip -j otlpinf-amd64.zip build/otlpinf
           zip -j otelcol-contrib-amd64.zip runner/otelcol-contrib
 
-      - name: Download and zip arm64
+      - name: Download arm64 collector and build arm64 binaries
         env:
           RELEASE: ${{needs.check.outputs.release}}
           ARTIFACT_VERSION: ${{ env.ARTIFACT_VERSION }}
@@ -78,9 +78,16 @@ jobs:
           ARTIFACT_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/$RELEASE/$ARTIFACT"
           mkdir .temp/
           wget -O .temp/otelcol-contrib.tar.gz $ARTIFACT_URL
-
           tar -xvzf .temp/otelcol-contrib.tar.gz -C .temp/
+
+          # arm64 otelcol-contrib artifact
           zip -j otelcol-contrib-arm64.zip .temp/otelcol-contrib
+
+          # Embed the arm64 collector and cross-build the arm64 otlpinf.
+          mv .temp/otelcol-contrib runner/otelcol-contrib
+          make build GOARCH=arm64
+          zip -j otlpinf-arm64.zip build/otlpinf
+
           rm -rf .temp/
 
       - name: Generate release changelog
@@ -89,6 +96,9 @@ jobs:
           PREV: ${{ needs.check.outputs.previous }}
           NEW: ${{ needs.check.outputs.release }}
         run: bash ./scripts/release-notes.sh "$PREV" "$NEW" > changelog.md
+
+      - name: Generate checksums
+        run: sha256sum otlpinf-amd64.zip otlpinf-arm64.zip otelcol-contrib-amd64.zip otelcol-contrib-arm64.zip > checksums.txt
 
       - name: Release
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 #v2.3.2
@@ -99,8 +109,10 @@ jobs:
           body_path: ./changelog.md
           files: |
             otlpinf-amd64.zip
+            otlpinf-arm64.zip
             otelcol-contrib-amd64.zip
             otelcol-contrib-arm64.zip
+            checksums.txt
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf #v3.2.0

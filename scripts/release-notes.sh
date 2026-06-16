@@ -63,10 +63,12 @@ else
   # Drop upstream's leading "Check the ... changelog" line (we built our own),
   # strip from "## Changelog" to EOF (raw commit-hash list = noise),
   # drop the redundant "## <version>" heading, then trim leading blank lines.
+  # Escape regex metacharacters (dots) in the version before using it in a sed pattern.
+  new_re=${NEW//./\\.}
   upstream_curated="$(printf '%s\n' "$upstream_raw" \
     | sed '/^Check the .*for changelogs on specific components\.$/d' \
     | awk 'BEGIN{keep=1} /^## Changelog[[:space:]]*$/{keep=0} keep' \
-    | sed "/^## ${NEW}[[:space:]]*\$/d" \
+    | sed "/^## ${new_re}[[:space:]]*\$/d" \
     | awk 'NF{f=1} f')"
   if [[ -n "${upstream_curated//[[:space:]]/}" ]]; then
     printf '%s\n' "$upstream_curated"

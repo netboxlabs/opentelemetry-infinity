@@ -13,6 +13,7 @@ jobs:
   check:
     outputs:
       release: ${{ steps.early.outputs.release }}
+      previous: ${{ steps.early.outputs.previous }}
     runs-on: ubuntu-latest
     steps:
       - id: early
@@ -27,17 +28,19 @@ jobs:
             release=$OTEL_LATEST_VERSION
           fi
           echo "release=$release" >> $GITHUB_OUTPUT
+          echo "previous=$INF_LATEST_VERSION" >> $GITHUB_OUTPUT
   release:
     runs-on: ubuntu-latest
     needs: check
     if: needs.check.outputs.release != ''
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Download Version
         env:
           RELEASE: ${{needs.check.outputs.release}}
         run: |
-          echo "LAST_TAG=`git tag --sort=committerdate | tail -1`" >> $GITHUB_ENV
           ARTIFACT_VERSION=${RELEASE:1}
           echo "ARTIFACT_VERSION=$ARTIFACT_VERSION" >> $GITHUB_ENV
 
@@ -82,11 +85,10 @@ jobs:
 
       - name: Generate release changelog
         env:
-          LAST_TAG: ${{ env.LAST_TAG }}
-        run: |
-          echo "# What's new" > changelog.md
-          git log ${{ env.LAST_TAG }}..HEAD --pretty=format:"$ad- %s [%an]" >> changelog.md
-          sed -i -e "s/- /• /g" changelog.md
+          GH_TOKEN: ${{ github.token }}
+          PREV: ${{ needs.check.outputs.previous }}
+          NEW: ${{ needs.check.outputs.release }}
+        run: bash ./scripts/release-notes.sh "$PREV" "$NEW" > changelog.md
 
       - name: Release
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 #v2.3.2

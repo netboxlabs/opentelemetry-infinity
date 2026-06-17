@@ -1,0 +1,7 @@
+# Keep host-built artifacts out of the Docker build context. Otherwise `COPY . .`
+# would carry a single-architecture runner/otelcol-contrib into every platform of
+# the multi-arch build, and docker/Dockerfile skips `make getotelcol` when that
+# file already exists — causing e.g. the linux/amd64 image to embed an arm64
+# collector. Excluding it forces each platform build to fetch its own arch.
+build/
+runner/otelcol-contrib

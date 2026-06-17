@@ -1,0 +1,14 @@
+Check the [v0.154.0 contrib changelog](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.154.0) and the [v0.154.0 core changelog](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.154.0) for changelogs on specific components.
+
+## v0.154.0
+
+### 🚩 Deprecations 🚩
+
+- `jmxreceiver`: Remove deprecated JMX receiver from contrib distribution (#1519)
+
+## Changelog
+* 4ae7f285f3df635cb3c456f8dfba045973bb4d91 Update version to 0.154.0 (#1525)
+* a25341e2c9ee249513d647e5d83e314e4fee3fac chore(deps): update opentelemetry collector components (#1523)
+* 6359fa04052f0e31e987dda2cdeefb3879cc02cf chore(deps): update dockerfile deps (#1520)
+* b17d62576dcb1d86e94a7f394eefe50528e6037d chore(deps): update github-actions deps to v4.36.2 (#1521)
+* 2b67e1f3523334aee7f2fe5ed167805ef70943b3 chore(deps): update module go.opentelemetry.io/ebpf-profiler to v0.0.202623 (#1522)

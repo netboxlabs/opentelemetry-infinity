@@ -1,6 +1,6 @@
 module github.com/netboxlabs/opentelemetry-infinity
 
-go 1.25.4
+go 1.26.4
 
 require (
 	github.com/amenzhinsky/go-memexec v0.7.1

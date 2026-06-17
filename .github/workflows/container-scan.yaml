@@ -8,6 +8,7 @@ on:
       - "go.mod"
       - "go.sum"
       - "docker/**"
+      - ".dockerignore"
       - "Makefile"
       - ".github/workflows/container-scan.yaml"
 

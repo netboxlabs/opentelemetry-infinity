@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -123,22 +124,44 @@ func TestReleaseCollectorWithoutHolderReportsIt(t *testing.T) {
 	}
 }
 
-func newTestRunner(t *testing.T) *Runner {
+func newTestRunner(t *testing.T, policy *config.Policy) *Runner {
 	t.Helper()
 	r := &Runner{
 		logger:     slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 		policyName: TestPolicy,
 		policyDir:  PolicyDir,
+		errChan:    make(chan string),
 	}
-	if err := r.Configure(&config.Policy{Receivers: map[string]interface{}{"policy": "value1"}}); err != nil {
+	if err := r.Configure(policy); err != nil {
 		t.Fatalf(ErrorMessage, err)
 	}
 	return r
 }
 
+// The embedded collector only runs on Linux; elsewhere Start fails before the
+// process exists.
+func skipUnlessCollectorRuns(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("the embedded collector is a Linux binary")
+	}
+}
+
+var invalidPolicy = &config.Policy{Receivers: map[string]interface{}{"policy": "value1"}}
+
+var nopPolicy = &config.Policy{
+	Receivers: map[string]interface{}{"nop": map[string]interface{}{}},
+	Exporters: map[string]interface{}{"nop": map[string]interface{}{}},
+	Service: map[string]interface{}{
+		"pipelines": map[string]interface{}{
+			"metrics": map[string]interface{}{"receivers": []string{"nop"}, "exporters": []string{"nop"}},
+		},
+	},
+}
+
 func TestRunnerStartReleasesCollectorWhenProcessNeverStarts(t *testing.T) {
 	waitForNoCollectorHolders(t)
-	r := newTestRunner(t)
+	r := newTestRunner(t, invalidPolicy)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -151,11 +174,30 @@ func TestRunnerStartReleasesCollectorWhenProcessNeverStarts(t *testing.T) {
 }
 
 func TestRunnerReleasesCollectorWhenProcessExits(t *testing.T) {
+	skipUnlessCollectorRuns(t)
 	waitForNoCollectorHolders(t)
-	r := newTestRunner(t)
+	r := newTestRunner(t, invalidPolicy)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	_ = r.Start(ctx, cancel)
+	defer cancel()
+	if err := r.Start(ctx, cancel); err == nil {
+		t.Fatal("expected Start to report the collector rejecting its config")
+	}
+	waitForNoCollectorHolders(t)
+}
+
+func TestRunnerReleasesCollectorWhenStopped(t *testing.T) {
+	skipUnlessCollectorRuns(t)
+	waitForNoCollectorHolders(t)
+	r := newTestRunner(t, nopPolicy)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := r.Start(ctx, cancel); err != nil {
+		t.Fatalf(ErrorMessage, err)
+	}
+	if n := collectorRefCount(); n != 1 {
+		t.Fatalf("expected the running collector to hold the copy, got %d holders", n)
+	}
 	r.Stop(ctx)
 	waitForNoCollectorHolders(t)
 }

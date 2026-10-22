@@ -23,10 +23,9 @@ import (
 //go:embed otelcol-contrib
 var otelContrib []byte
 
-// memexec copies the embedded collector into an in-memory file, so a copy per
-// policy held the whole binary in RAM once for every running policy. One copy
-// is shared instead: each running collector and each capabilities call holds a
-// reference, and the copy is freed when the last one ends.
+// The embedded collector runs from one in-memory copy made by memexec. The copy
+// is reference counted: each running collector and each capabilities call
+// holds a reference, and the last release frees it.
 var (
 	collectorMu   sync.Mutex
 	collectorExe  *memexec.Exec
@@ -49,21 +48,28 @@ func acquireCollector() (*memexec.Exec, error) {
 	return collectorExe, nil
 }
 
+var errNoCollectorHolder = errors.New("collector released without a holder")
+
 // releaseCollector drops a reference and frees the executable with the last.
-func releaseCollector() {
+func releaseCollector() error {
 	collectorMu.Lock()
 	defer collectorMu.Unlock()
 	if collectorRefs == 0 {
-		return
+		return errNoCollectorHolder
 	}
 	collectorRefs--
 	if collectorRefs > 0 || collectorExe == nil {
-		return
+		return nil
 	}
-	if err := collectorExe.Close(); err != nil {
-		slog.Error("failed to release collector executable", "error", err)
-	}
+	exe := collectorExe
 	collectorExe = nil
+	return exe.Close()
+}
+
+func logCollectorRelease(logger *slog.Logger) {
+	if err := releaseCollector(); err != nil {
+		logger.Error("failed to release collector executable", "error", err)
+	}
 }
 
 type status int
@@ -111,12 +117,12 @@ type Runner struct {
 }
 
 // GetCapabilities returns the capabilities of the runner
-func GetCapabilities(_ *slog.Logger) ([]byte, error) {
+func GetCapabilities(logger *slog.Logger) ([]byte, error) {
 	exe, err := acquireCollector()
 	if err != nil {
 		return nil, err
 	}
-	defer releaseCollector()
+	defer logCollectorRelease(logger)
 	cmd := exe.Command("components")
 	ret, err := cmd.Output()
 	if err != nil {
@@ -187,7 +193,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	started := false
 	defer func() {
 		if !started {
-			releaseCollector()
+			logCollectorRelease(r.logger)
 		}
 	}()
 
@@ -221,7 +227,9 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	started = true
 	go func() {
 		err := r.cmd.Wait()
-		releaseCollector()
+		// Release before reporting the exit: after Stop nothing reads errChan,
+		// so the send below can block forever.
+		logCollectorRelease(r.logger)
 		if err != nil {
 			r.errChan <- r.state.LastLog
 			close(r.errChan)

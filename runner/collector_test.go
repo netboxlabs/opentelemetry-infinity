@@ -1,28 +1,53 @@
 package runner
 
 import (
+	"context"
+	"errors"
+	"log/slog"
+	"os"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/amenzhinsky/go-memexec"
+
+	"github.com/netboxlabs/opentelemetry-infinity/config"
 )
 
-func resetCollector(t *testing.T) {
-	t.Helper()
+func collectorRefCount() int {
 	collectorMu.Lock()
 	defer collectorMu.Unlock()
-	if collectorExe != nil {
-		_ = collectorExe.Close()
+	return collectorRefs
+}
+
+// waitForNoCollectorHolders waits for collectors started by earlier tests to
+// exit and give back their references, so each test starts from zero.
+func waitForNoCollectorHolders(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for collectorRefCount() != 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("collector still has %d holders", collectorRefCount())
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	collectorExe, collectorRefs = nil, 0
+}
+
+func assertFreed(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected the collector copy at %s to be freed, stat error: %v", path, err)
+	}
 }
 
 func TestCollectorIsSharedWhileReferenced(t *testing.T) {
-	resetCollector(t)
-	t.Cleanup(func() { resetCollector(t) })
+	waitForNoCollectorHolders(t)
 
 	first, err := acquireCollector()
 	if err != nil {
 		t.Fatalf(ErrorMessage, err)
 	}
+	path := first.Command().Path
 	second, err := acquireCollector()
 	if err != nil {
 		t.Fatalf(ErrorMessage, err)
@@ -31,20 +56,17 @@ func TestCollectorIsSharedWhileReferenced(t *testing.T) {
 		t.Fatal("expected every holder to share the same collector executable")
 	}
 
-	releaseCollector()
-	third, err := acquireCollector()
-	if err != nil {
+	if err := releaseCollector(); err != nil {
 		t.Fatalf(ErrorMessage, err)
 	}
-	if third != first {
-		t.Fatal("expected the collector executable to survive while it is still referenced")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected the copy to survive while still referenced: %v", err)
 	}
 
-	releaseCollector()
-	releaseCollector()
-	if collectorExe != nil || collectorRefs != 0 {
-		t.Fatalf("expected the executable freed after the last release, refs=%d", collectorRefs)
+	if err := releaseCollector(); err != nil {
+		t.Fatalf(ErrorMessage, err)
 	}
+	assertFreed(t, path)
 
 	fresh, err := acquireCollector()
 	if err != nil {
@@ -53,15 +75,16 @@ func TestCollectorIsSharedWhileReferenced(t *testing.T) {
 	if fresh == first {
 		t.Fatal("expected a new collector executable after the last release")
 	}
-	releaseCollector()
+	if err := releaseCollector(); err != nil {
+		t.Fatalf(ErrorMessage, err)
+	}
 }
 
 func TestCollectorConcurrentHoldersShareOneExecutable(t *testing.T) {
-	resetCollector(t)
-	t.Cleanup(func() { resetCollector(t) })
+	waitForNoCollectorHolders(t)
 
 	const holders = 8
-	got := make([]any, holders)
+	got := make([]*memexec.Exec, holders)
 	var wg sync.WaitGroup
 	for i := range holders {
 		wg.Add(1)
@@ -81,20 +104,58 @@ func TestCollectorConcurrentHoldersShareOneExecutable(t *testing.T) {
 			t.Fatalf("holder %d got a different collector executable", i)
 		}
 	}
-
+	path := got[0].Command().Path
 	for range holders {
-		releaseCollector()
+		if err := releaseCollector(); err != nil {
+			t.Fatalf(ErrorMessage, err)
+		}
 	}
-	if collectorExe != nil || collectorRefs != 0 {
-		t.Fatalf("expected the executable freed after every holder released, refs=%d", collectorRefs)
+	assertFreed(t, path)
+}
+
+func TestReleaseCollectorWithoutHolderReportsIt(t *testing.T) {
+	waitForNoCollectorHolders(t)
+	if err := releaseCollector(); !errors.Is(err, errNoCollectorHolder) {
+		t.Fatalf("expected errNoCollectorHolder, got %v", err)
+	}
+	if n := collectorRefCount(); n != 0 {
+		t.Fatalf("expected no holders, got %d", n)
 	}
 }
 
-func TestReleaseCollectorWithoutHoldersIsSafe(t *testing.T) {
-	resetCollector(t)
-	releaseCollector()
-	releaseCollector()
-	if collectorRefs != 0 {
-		t.Fatalf("expected refs to stay at zero, got %d", collectorRefs)
+func newTestRunner(t *testing.T) *Runner {
+	t.Helper()
+	r := &Runner{
+		logger:     slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		policyName: TestPolicy,
+		policyDir:  PolicyDir,
 	}
+	if err := r.Configure(&config.Policy{Receivers: map[string]interface{}{"policy": "value1"}}); err != nil {
+		t.Fatalf(ErrorMessage, err)
+	}
+	return r
+}
+
+func TestRunnerStartReleasesCollectorWhenProcessNeverStarts(t *testing.T) {
+	waitForNoCollectorHolders(t)
+	r := newTestRunner(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.Start(ctx, cancel); err == nil {
+		t.Fatal("expected Start to fail with a cancelled context")
+	}
+	if n := collectorRefCount(); n != 0 {
+		t.Fatalf("expected the reference given back, got %d holders", n)
+	}
+}
+
+func TestRunnerReleasesCollectorWhenProcessExits(t *testing.T) {
+	waitForNoCollectorHolders(t)
+	r := newTestRunner(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = r.Start(ctx, cancel)
+	r.Stop(ctx)
+	waitForNoCollectorHolders(t)
 }

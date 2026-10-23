@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/amenzhinsky/go-memexec"
@@ -21,6 +22,55 @@ import (
 
 //go:embed otelcol-contrib
 var otelContrib []byte
+
+// The embedded collector runs from one in-memory copy made by memexec. The copy
+// is reference counted: each running collector and each capabilities call
+// holds a reference, and the last release frees it.
+var (
+	collectorMu   sync.Mutex
+	collectorExe  *memexec.Exec
+	collectorRefs int
+)
+
+// acquireCollector returns the shared collector executable, creating it on
+// first use. Every successful call must be paired with releaseCollector.
+func acquireCollector() (*memexec.Exec, error) {
+	collectorMu.Lock()
+	defer collectorMu.Unlock()
+	if collectorExe == nil {
+		exe, err := memexec.New(otelContrib)
+		if err != nil {
+			return nil, err
+		}
+		collectorExe = exe
+	}
+	collectorRefs++
+	return collectorExe, nil
+}
+
+var errNoCollectorHolder = errors.New("collector released without a holder")
+
+// releaseCollector drops a reference and frees the executable with the last.
+func releaseCollector() error {
+	collectorMu.Lock()
+	defer collectorMu.Unlock()
+	if collectorRefs == 0 {
+		return errNoCollectorHolder
+	}
+	collectorRefs--
+	if collectorRefs > 0 || collectorExe == nil {
+		return nil
+	}
+	exe := collectorExe
+	collectorExe = nil
+	return exe.Close()
+}
+
+func logCollectorRelease(logger *slog.Logger) {
+	if err := releaseCollector(); err != nil {
+		logger.Error("failed to release collector executable", "error", err)
+	}
+}
 
 type status int
 
@@ -68,15 +118,11 @@ type Runner struct {
 
 // GetCapabilities returns the capabilities of the runner
 func GetCapabilities(logger *slog.Logger) ([]byte, error) {
-	exe, err := memexec.New(otelContrib)
+	exe, err := acquireCollector()
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := exe.Close(); err != nil {
-			logger.Error("failed to exit", "error", err)
-		}
-	}()
+	defer logCollectorRelease(logger)
 	cmd := exe.Command("components")
 	ret, err := cmd.Output()
 	if err != nil {
@@ -138,13 +184,16 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	r.cancelFunc = cancelFunc
 	r.ctx = ctx
 
-	exe, err := memexec.New(otelContrib)
+	exe, err := acquireCollector()
 	if err != nil {
 		return err
 	}
+	// The reference passes to the process once it starts; until then any
+	// early return gives it back.
+	started := false
 	defer func() {
-		if err := exe.Close(); err != nil {
-			r.logger.Error("failed to exit", "error", err)
+		if !started {
+			logCollectorRelease(r.logger)
 		}
 	}()
 
@@ -175,8 +224,13 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 	if err = r.cmd.Start(); err != nil {
 		return err
 	}
+	started = true
 	go func() {
-		if err := r.cmd.Wait(); err != nil {
+		err := r.cmd.Wait()
+		// Release before reporting the exit: after Stop nothing reads errChan,
+		// so the send below can block forever.
+		logCollectorRelease(r.logger)
+		if err != nil {
 			r.errChan <- r.state.LastLog
 			close(r.errChan)
 		}

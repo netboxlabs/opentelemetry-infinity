@@ -109,6 +109,7 @@ type Runner struct {
 	sets          []string
 	options       []string
 	selfTelemetry bool
+	stateMu       sync.Mutex // guards state: the process goroutines write it while the API reads it
 	state         State
 	cancelFunc    context.CancelFunc
 	ctx           context.Context
@@ -212,12 +213,12 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 			if shouldSuppressCollectorLog(line) {
 				continue
 			}
-			r.state.LastLog = line
+			r.setLastLog(line)
 			msg, level, attrs := parseCollectorLog(line)
 			attrs = append([]slog.Attr{slog.String("policy", r.policyName)}, attrs...)
 			r.logger.LogAttrs(r.ctx, level, msg, attrs...)
 			if r.cmd.Err != nil {
-				r.errChan <- r.state.LastLog
+				r.errChan <- line
 			}
 		}
 	}()
@@ -231,14 +232,16 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		// so the send below can block forever.
 		logCollectorRelease(r.logger)
 		if err != nil {
-			r.errChan <- r.state.LastLog
+			r.errChan <- r.lastLog()
 			close(r.errChan)
 		}
 	}()
 
 	reg, _ := regexp.Compile("[^a-zA-Z0-9:(), ]+")
 
+	r.stateMu.Lock()
 	r.state.startTime = time.Now()
+	r.stateMu.Unlock()
 	ctxTimeout, cancel := context.WithTimeout(r.ctx, 1*time.Second)
 	defer cancel()
 	select {
@@ -253,8 +256,7 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		for {
 			select {
 			case line := <-r.errChan:
-				r.state.LastError = string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...))
-				r.setStatus(runnerError)
+				r.recordError(string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...)))
 			case <-r.ctx.Done():
 				r.Stop(r.ctx)
 				return
@@ -273,14 +275,39 @@ func (r *Runner) Stop(ctx context.Context) {
 	r.logger.Info("runner process stopped", slog.String("policy", r.policyName))
 }
 
-// GetStatus returns the status of the runner
+// GetStatus returns a copy of the status of the runner
 func (r *Runner) GetStatus() State {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	return r.state
 }
 
 func (r *Runner) setStatus(s status) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
 	r.state.Status = s
 	r.state.StatusText = mapStatus[s]
+}
+
+// recordError stores the collector's error and the error status together.
+func (r *Runner) recordError(msg string) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.state.LastError = msg
+	r.state.Status = runnerError
+	r.state.StatusText = mapStatus[runnerError]
+}
+
+func (r *Runner) setLastLog(line string) {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.state.LastLog = line
+}
+
+func (r *Runner) lastLog() string {
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	return r.state.LastLog
 }
 
 func parseCollectorLog(line string) (string, slog.Level, []slog.Attr) {

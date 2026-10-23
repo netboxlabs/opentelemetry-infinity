@@ -252,19 +252,28 @@ func (r *Runner) Start(ctx context.Context, cancelFunc context.CancelFunc) error
 		r.logger.Info("runner proccess started successfully", slog.String("policy", r.policyName), slog.Any("pid", r.cmd.Process.Pid))
 	}
 
-	go func() {
-		for {
-			select {
-			case line := <-r.errChan:
-				r.recordError(string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...)))
-			case <-r.ctx.Done():
-				r.Stop(r.ctx)
-				return
-			}
-		}
-	}()
+	go r.monitor(reg)
 
 	return nil
+}
+
+// monitor records the collector's errors until the runner's context ends.
+func (r *Runner) monitor(reg *regexp.Regexp) {
+	errCh := r.errChan
+	for {
+		select {
+		case line, ok := <-errCh:
+			if !ok {
+				// The collector has exited; a nil channel is never ready again.
+				errCh = nil
+				continue
+			}
+			r.recordError(string(append([]byte("otelcol-contrib - "), reg.ReplaceAllString(line, "")...)))
+		case <-r.ctx.Done():
+			r.Stop(r.ctx)
+			return
+		}
+	}
 }
 
 // Stop stops the runner

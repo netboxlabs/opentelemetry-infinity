@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -76,8 +78,9 @@ func (o *OltpInf) startServer() <-chan error {
 }
 
 func (o *OltpInf) getStatus(c *gin.Context) {
-	o.stat.UpTime = time.Since(o.stat.StartTime)
-	c.IndentedJSON(http.StatusOK, o.stat)
+	stat := o.stat
+	stat.UpTime = time.Since(stat.StartTime)
+	c.IndentedJSON(http.StatusOK, stat)
 }
 
 func (o *OltpInf) getCapabilities(c *gin.Context) {
@@ -96,16 +99,12 @@ func (o *OltpInf) getCapabilities(c *gin.Context) {
 }
 
 func (o *OltpInf) getPolicies(c *gin.Context) {
-	policies := make([]string, 0, len(o.policies))
-	for k := range o.policies {
-		policies = append(policies, k)
-	}
-	c.IndentedJSON(http.StatusOK, policies)
+	c.IndentedJSON(http.StatusOK, o.policyNames())
 }
 
 func (o *OltpInf) getPolicy(c *gin.Context) {
 	policy := c.Param("policy")
-	rInfo, ok := o.policies[policy]
+	rInfo, ok := o.lookupPolicy(policy)
 	if ok {
 		c.YAML(http.StatusOK, map[string]returnPolicyData{policy: {rInfo.Instance.GetStatus(), rInfo.Policy}})
 	} else {
@@ -129,57 +128,55 @@ func (o *OltpInf) createPolicy(c *gin.Context) {
 		return
 	}
 
-	for policy := range payload {
-		_, ok := o.policies[policy]
-		if ok {
+	o.createMu.Lock()
+	defer o.createMu.Unlock()
+
+	// Name order makes a failure part-way through stop the same policies every time.
+	names := slices.Sorted(maps.Keys(payload))
+	for _, policy := range names {
+		if _, ok := o.lookupPolicy(policy); ok {
 			c.IndentedJSON(http.StatusConflict, returnValue{"policy '" + policy + "' already exists"})
 			return
-
 		}
 	}
 
-	var newPolicies []string
-	newPolicyData := make(map[string]returnPolicyData)
-	for policy, data := range payload {
+	// The request's policies are added together once all have started, so a
+	// failure leaves none of them behind.
+	started := make(map[string]RunnerInfo, len(names))
+	stopStarted := func() {
+		for _, info := range started {
+			info.Instance.Stop(o.ctx)
+		}
+	}
+	newPolicyData := make(map[string]returnPolicyData, len(names))
+	for _, policy := range names {
+		data := payload[policy]
 		r := runner.NewRunner(o.logger, policy, o.policiesDir, o.conf)
 		if err := r.Configure(&data); err != nil {
-			for _, p := range newPolicies {
-				r, ok := o.policies[p]
-				if ok {
-					r.Instance.Stop(o.ctx)
-					delete(o.policies, policy)
-				}
-			}
+			stopStarted()
 			c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 			return
 		}
 		runnerCtx := context.WithValue(o.ctx, routineKey, policy)
 		if err := r.Start(context.WithCancel(runnerCtx)); err != nil {
-			for _, p := range newPolicies {
-				r, ok := o.policies[p]
-				if ok {
-					r.Instance.Stop(o.ctx)
-					delete(o.policies, policy)
-				}
-			}
+			stopStarted()
 			c.IndentedJSON(http.StatusBadRequest, returnValue{err.Error()})
 			return
 		}
-		o.policies[policy] = RunnerInfo{Policy: data, Instance: r}
-		newPolicies = append(newPolicies, policy)
+		started[policy] = RunnerInfo{Policy: data, Instance: r}
 		newPolicyData[policy] = returnPolicyData{r.GetStatus(), data}
 	}
+	o.addPolicies(started)
 	c.YAML(http.StatusCreated, newPolicyData)
 }
 
 func (o *OltpInf) deletePolicy(c *gin.Context) {
 	policy := c.Param("policy")
-	r, ok := o.policies[policy]
-	if ok {
-		r.Instance.Stop(o.ctx)
-		delete(o.policies, policy)
-		c.IndentedJSON(http.StatusOK, returnValue{policy + " was deleted"})
-	} else {
+	r, ok := o.removePolicy(policy)
+	if !ok {
 		c.IndentedJSON(http.StatusNotFound, returnValue{"policy not found"})
+		return
 	}
+	r.Instance.Stop(o.ctx)
+	c.IndentedJSON(http.StatusOK, returnValue{policy + " was deleted"})
 }

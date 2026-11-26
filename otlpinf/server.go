@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	yson "github.com/ghodss/yaml"
@@ -39,9 +40,19 @@ func (o *OltpInf) setupRouter() {
 	o.router.DELETE("/api/v1/policies/:policy", o.deletePolicy)
 }
 
+// listenAddr joins host and port for the listener, bracketing an IPv6 host.
+// A host given already bracketed, as [::1], keeps working: JoinHostPort would
+// bracket it again.
+func listenAddr(host string, port uint64) string {
+	if len(host) > 1 && host[0] == '[' && host[len(host)-1] == ']' {
+		host = host[1 : len(host)-1]
+	}
+	return net.JoinHostPort(host, strconv.FormatUint(port, 10))
+}
+
 func (o *OltpInf) startServer() <-chan error {
 	o.setupRouter()
-	serverAddr := fmt.Sprintf("%s:%d", o.conf.ServerHost, o.conf.ServerPort)
+	serverAddr := listenAddr(o.conf.ServerHost, o.conf.ServerPort)
 	errCh := make(chan error, 1)
 
 	o.httpServer = &http.Server{

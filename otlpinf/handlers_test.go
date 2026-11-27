@@ -2,16 +2,22 @@ package otlpinf
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/netboxlabs/opentelemetry-infinity/config"
+	"github.com/netboxlabs/opentelemetry-infinity/runner"
 )
 
 func newTestOtlp() *OltpInf {
@@ -19,6 +25,79 @@ func newTestOtlp() *OltpInf {
 	o := NewOtlp(logger, &config.Config{ServerHost: TestHost})
 	o.setupRouter()
 	return o
+}
+
+// Concurrent status requests each report the uptime without writing it back.
+func TestGetStatusConcurrent(t *testing.T) {
+	o := newTestOtlp()
+	o.stat.StartTime = time.Now().Add(-time.Minute)
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/api/v1/status", nil)
+			o.router.ServeHTTP(w, req)
+
+			var got config.Status
+			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+				t.Errorf("decode status: %v", err)
+				return
+			}
+			if got.UpTime < time.Minute {
+				t.Errorf("expected up_time of at least a minute, got %v", got.UpTime)
+			}
+		})
+	}
+	wg.Wait()
+
+	if o.stat.UpTime != 0 {
+		t.Errorf("expected the stored status to stay unchanged, got up_time %v", o.stat.UpTime)
+	}
+}
+
+// Policy requests read the policies while others are added and removed.
+func TestPoliciesConcurrentAccess(t *testing.T) {
+	o := newTestOtlp()
+	expect := func(method, path string, want ...int) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(method, path, nil)
+		o.router.ServeHTTP(w, req)
+		if !slices.Contains(want, w.Code) {
+			t.Errorf("%s %s: unexpected status %d, want one of %v", method, path, w.Code, want)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for g := range 4 {
+		wg.Go(func() {
+			for i := range 300 {
+				name := fmt.Sprintf("p%d_%d", g, i)
+				o.addPolicies(map[string]RunnerInfo{name: {Instance: runner.NewRunner(o.logger, name, "", o.conf)}})
+				if _, ok := o.removePolicy(name); !ok {
+					t.Errorf("expected %s to be present", name)
+				}
+			}
+		})
+		wg.Go(func() {
+			for i := range 300 {
+				expect("GET", PoliciesAPI, http.StatusOK)
+				expect("GET", fmt.Sprintf("%s/p%d_%d", PoliciesAPI, g, i), http.StatusOK, http.StatusNotFound)
+			}
+		})
+		// Deleting a name that was never added still goes through the map,
+		// without a runner to stop.
+		wg.Go(func() {
+			for i := range 300 {
+				expect("DELETE", fmt.Sprintf("%s/missing_%d_%d", PoliciesAPI, g, i), http.StatusNotFound)
+			}
+		})
+	}
+	wg.Wait()
+
+	if names := o.policyNames(); len(names) != 0 {
+		t.Errorf("expected no policies left, got %v", names)
+	}
 }
 
 // getCapabilities returns 400 when the stored capabilities are not valid YAML.

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,9 +27,13 @@ type RunnerInfo struct {
 
 // OltpInf represents the otlpinf routine
 type OltpInf struct {
-	logger         *slog.Logger
-	conf           *config.Config
-	stat           config.Status
+	logger *slog.Logger
+	conf   *config.Config
+	stat   config.Status
+	// createMu serializes policy creation, so a name is checked and added in one step.
+	createMu sync.Mutex
+	// policiesMu guards policies.
+	policiesMu     sync.RWMutex
 	policies       map[string]RunnerInfo
 	policiesDir    string
 	ctx            context.Context
@@ -91,6 +97,37 @@ func (o *OltpInf) Stop(_ context.Context) {
 	if o.cancelFunction != nil {
 		o.cancelFunction()
 	}
+}
+
+func (o *OltpInf) policyNames() []string {
+	o.policiesMu.RLock()
+	defer o.policiesMu.RUnlock()
+	names := make([]string, 0, len(o.policies))
+	for name := range o.policies {
+		names = append(names, name)
+	}
+	return names
+}
+
+func (o *OltpInf) lookupPolicy(name string) (RunnerInfo, bool) {
+	o.policiesMu.RLock()
+	defer o.policiesMu.RUnlock()
+	info, ok := o.policies[name]
+	return info, ok
+}
+
+func (o *OltpInf) addPolicies(policies map[string]RunnerInfo) {
+	o.policiesMu.Lock()
+	defer o.policiesMu.Unlock()
+	maps.Copy(o.policies, policies)
+}
+
+func (o *OltpInf) removePolicy(name string) (RunnerInfo, bool) {
+	o.policiesMu.Lock()
+	defer o.policiesMu.Unlock()
+	info, ok := o.policies[name]
+	delete(o.policies, name)
+	return info, ok
 }
 
 func (o *OltpInf) startFailure(err error) <-chan error {

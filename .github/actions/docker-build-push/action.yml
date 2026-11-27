@@ -8,6 +8,10 @@ inputs:
     description: "Target platforms."
     required: false
     default: "linux/amd64,linux/arm64"
+  build-args:
+    description: "Newline-separated build arguments."
+    required: false
+    default: ""
   push:
     description: "Whether to push the image."
     required: false
@@ -40,3 +44,4 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}

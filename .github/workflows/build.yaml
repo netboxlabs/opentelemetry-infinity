@@ -2,14 +2,20 @@ name: otlpinf-build
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Collector release to embed in develop; empty for this repository's latest release
+        required: false
+        type: string
 
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
 
+# Pull requests queue apart, so one cannot cancel a pending develop build.
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
   cancel-in-progress: false
 
 permissions:
@@ -98,10 +104,53 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      # Name the collector release once, for every platform: each one resolving
+      # "latest" on its own can land on the previous release while GitHub is
+      # still catching up with a new one.
+      - name: Resolve collector release
+        id: collector
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          # The image build pastes the release into a shell command.
+          tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          version="$REQUESTED_VERSION"
+          if [ -n "$version" ]; then
+            if ! [[ "$version" =~ $tag_pattern ]]; then
+              echo "::error::version must look like v1.2.3, got: $version"
+              exit 1
+            fi
+            # A release run that failed before publishing asks for a release that
+            # does not exist; develop then stays on the latest one. Any other
+            # lookup failure stops the build.
+            if ! err=$(gh release view "$version" --repo "$GITHUB_REPOSITORY" --json tagName 2>&1 >/dev/null); then
+              if [[ "$err" != *"release not found"* ]]; then
+                echo "::error::cannot look up release $version: $err"
+                exit 1
+              fi
+              echo "::warning::release $version not found; embedding the latest release"
+              version=""
+            fi
+          fi
+          if [ -z "$version" ]; then
+            version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::no release of this repository to embed"
+            exit 1
+          fi
+          if ! [[ "$version" =~ $tag_pattern ]]; then
+            echo "::error::latest release $version does not look like v1.2.3"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: ./.github/actions/docker-build-push
         with:
           tags: netboxlabs/opentelemetry-infinity:develop
+          build-args: OTELCOL_VERSION=${{ steps.collector.outputs.version }}
           dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 

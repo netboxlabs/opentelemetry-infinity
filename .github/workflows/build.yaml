@@ -2,6 +2,11 @@ name: otlpinf-build
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Collector release to embed in develop; empty for this repository's latest release
+        required: false
+        type: string
 
   pull_request:
     branches: [ main ]
@@ -106,8 +111,18 @@ jobs:
         id: collector
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          version="$REQUESTED_VERSION"
+          # A release run that failed before publishing asks for a release that
+          # does not exist; develop then stays on the latest one.
+          if [ -n "$version" ] && ! gh release view "$version" --repo "$GITHUB_REPOSITORY" --json tagName >/dev/null; then
+            echo "::warning::release $version not found; embedding the latest release"
+            version=""
+          fi
+          if [ -z "$version" ]; then
+            version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          fi
           if [ -z "$version" ]; then
             echo "::error::no release of this repository to embed"
             exit 1

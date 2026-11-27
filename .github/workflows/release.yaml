@@ -146,4 +146,5 @@ jobs:
       - name: Start otlpinf-build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run otlpinf-build --repo "$GITHUB_REPOSITORY" --ref main
+          RELEASE: ${{ needs.check.outputs.release }}
+        run: gh workflow run otlpinf-build --repo "$GITHUB_REPOSITORY" --ref main -f version="$RELEASE"

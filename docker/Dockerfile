@@ -12,7 +12,11 @@ ARG OTELCOL_VERSION
 WORKDIR /go/src/github.com/netboxlabs/opentelemetry-infinity
 COPY . .
 RUN apk update && apk add build-base curl dpkg-dev make upx
-RUN if [ ! -f "runner/otelcol-contrib" ] ; then make getotelcol ${OTELCOL_VERSION:+INF_LATEST_VERSION=$OTELCOL_VERSION} ; fi
+# make pastes the release into a shell command, so only a plain version tag is accepted.
+RUN if [ -n "$OTELCOL_VERSION" ] && ! echo "$OTELCOL_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' ; then \
+      echo "OTELCOL_VERSION must look like v1.2.3, got: $OTELCOL_VERSION" >&2 ; exit 1 ; \
+    fi ; \
+    if [ ! -f "runner/otelcol-contrib" ] ; then make getotelcol ${OTELCOL_VERSION:+INF_LATEST_VERSION="$OTELCOL_VERSION"} ; fi
 RUN make build && mv build/otlpinf /exe
 RUN upx /exe
 

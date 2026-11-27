@@ -113,18 +113,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
+          # The image build pastes the release into a shell command.
+          tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
           version="$REQUESTED_VERSION"
-          # A release run that failed before publishing asks for a release that
-          # does not exist; develop then stays on the latest one.
-          if [ -n "$version" ] && ! gh release view "$version" --repo "$GITHUB_REPOSITORY" --json tagName >/dev/null; then
-            echo "::warning::release $version not found; embedding the latest release"
-            version=""
+          if [ -n "$version" ]; then
+            if ! [[ "$version" =~ $tag_pattern ]]; then
+              echo "::error::version must look like v1.2.3, got: $version"
+              exit 1
+            fi
+            # A release run that failed before publishing asks for a release that
+            # does not exist; develop then stays on the latest one. Any other
+            # lookup failure stops the build.
+            if ! err=$(gh release view "$version" --repo "$GITHUB_REPOSITORY" --json tagName 2>&1 >/dev/null); then
+              if [[ "$err" != *"release not found"* ]]; then
+                echo "::error::cannot look up release $version: $err"
+                exit 1
+              fi
+              echo "::warning::release $version not found; embedding the latest release"
+              version=""
+            fi
           fi
           if [ -z "$version" ]; then
             version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
           fi
           if [ -z "$version" ]; then
             echo "::error::no release of this repository to embed"
+            exit 1
+          fi
+          if ! [[ "$version" =~ $tag_pattern ]]; then
+            echo "::error::latest release $version does not look like v1.2.3"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
